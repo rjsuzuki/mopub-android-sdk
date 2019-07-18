@@ -119,4 +119,9 @@ public abstract class AbstractBannerDetailFragment extends Fragment implements B
     public void onBannerCollapsed(MoPubView banner) {
         logToast(getActivity(), getName() + " collapsed.");
     }
+
+    @Override
+    public void onBannerRequest(MoPubView moPubView){
+        logToast(getActivity(), getName() + " request.");
+    }
 }

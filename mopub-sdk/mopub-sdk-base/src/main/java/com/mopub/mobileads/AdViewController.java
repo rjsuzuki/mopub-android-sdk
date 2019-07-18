@@ -253,6 +253,8 @@ public class AdViewController {
 
         String adUrl = generateAdUrl();
         loadNonJavascript(adUrl, null);
+
+        mMoPubView.adRequest();
     }
 
     void loadNonJavascript(@Nullable final String url, @Nullable final MoPubError moPubError) {
