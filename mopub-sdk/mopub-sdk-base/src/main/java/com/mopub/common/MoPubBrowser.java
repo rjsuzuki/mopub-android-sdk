@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -9,7 +9,6 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,6 +21,9 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
+import androidx.annotation.NonNull;
+
+import com.mopub.common.util.Utils;
 import com.mopub.mobileads.BaseWebView;
 import com.mopub.mobileads.util.WebViews;
 
@@ -88,6 +90,12 @@ public class MoPubBrowser extends Activity {
         initializeWebView();
         initializeButtons();
         enableCookies();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Utils.hideNavigationBar(this);
     }
 
     private void initializeWebView() {

@@ -1,19 +1,23 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.framework.pages;
 
-import android.support.annotation.NonNull;
-import android.support.test.espresso.ViewInteraction;
+import android.os.SystemClock;
 
-import static android.support.test.espresso.Espresso.onView;
-import static android.support.test.espresso.action.ViewActions.click;
-import static android.support.test.espresso.action.ViewActions.typeText;
-import static android.support.test.espresso.matcher.RootMatchers.isPlatformPopup;
-import static android.support.test.espresso.matcher.ViewMatchers.hasSibling;
-import static android.support.test.espresso.matcher.ViewMatchers.withResourceName;
-import static android.support.test.espresso.matcher.ViewMatchers.withText;
+import androidx.annotation.NonNull;
+import androidx.test.espresso.ViewInteraction;
+
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
+import static androidx.test.espresso.action.ViewActions.replaceText;
+import static androidx.test.espresso.action.ViewActions.typeText;
+import static androidx.test.espresso.matcher.RootMatchers.isPlatformPopup;
+import static androidx.test.espresso.matcher.ViewMatchers.hasSibling;
+import static androidx.test.espresso.matcher.ViewMatchers.withResourceName;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.allOf;
 
 import com.mopub.framework.base.BasePage;
@@ -25,9 +29,7 @@ public class AdListPage extends BasePage {
 
     public enum AdUnitType {
         BANNER("Banner"),
-        MRECT("Mrect"),
-        LEADERBOARD("Leaderboard"),
-        SKYSCRAPER("Skyscraper"),
+        MEDIUM_RECTANGLE("Medium Rectangle"),
         INTERSTITIAL("Interstitial"),
         REWARDED_VIDEO("Rewarded Video"),
         NATIVE_LIST_VIEW("Native List View"),
@@ -73,10 +75,11 @@ public class AdListPage extends BasePage {
         adTypeOptionElement.perform(click());
 
         final ViewInteraction adUnitIdTextField = onView(withResourceName(adUnitIdTextFieldResourceId));
-        adUnitIdTextField.perform(typeText(adUnitId));
+        adUnitIdTextField.perform(replaceText(adUnitId), closeSoftKeyboard());
 
         final ViewInteraction adUnitNameTextField = onView(withResourceName(adUnitNameTextFieldResourceId));
-        adUnitNameTextField.perform(typeText(adUnitName));
+        adUnitNameTextField.perform(replaceText(adUnitName), closeSoftKeyboard());
+        SystemClock.sleep(2000); // wait for keyboard to be closed
 
         clickElementWithText(saveAdUnitLabel);
 
@@ -84,7 +87,7 @@ public class AdListPage extends BasePage {
     }
 
     public AdListPage deleteAdUnit(@NonNull final String adUnitName) {
-        final String deleteButtonLabel = "DELETE";
+        final String deleteButtonLabel = "Delete";
 
         goToHome();
 

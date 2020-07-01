@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -8,8 +8,8 @@ import android.content.Context;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.SystemClock;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.util.DeviceUtils;
@@ -42,7 +42,7 @@ public class LocationService {
 
         @Deprecated
         public static LocationAwareness
-                fromMoPubLocationAwareness(MoPub.LocationAwareness awareness) {
+        fromMoPubLocationAwareness(MoPub.LocationAwareness awareness) {
             if (awareness == MoPub.LocationAwareness.DISABLED) {
                 return DISABLED;
             } else if (awareness == MoPub.LocationAwareness.TRUNCATED) {
@@ -53,9 +53,17 @@ public class LocationService {
         }
     }
 
+    private static final int DEFAULT_LOCATION_PRECISION = 6;
+    private static final long DEFAULT_LOCATION_REFRESH_TIME_MILLIS = 10 * 60 * 1000; // 10 minutes
+
     private static volatile LocationService sInstance;
-    @VisibleForTesting @Nullable Location mLastKnownLocation;
+    @VisibleForTesting
+    @Nullable
+    Location mLastKnownLocation;
     @VisibleForTesting long mLocationLastUpdatedMillis;
+    @NonNull private volatile MoPub.LocationAwareness mLocationAwareness = MoPub.LocationAwareness.NORMAL;
+    private volatile int mLocationPrecision = DEFAULT_LOCATION_PRECISION;
+    private volatile long mMinimumLocationRefreshTimeMillis = DEFAULT_LOCATION_REFRESH_TIME_MILLIS;
 
     private LocationService() {
     }
@@ -104,6 +112,38 @@ public class LocationService {
         }
     }
 
+    @NonNull
+    MoPub.LocationAwareness getLocationAwareness() {
+        return mLocationAwareness;
+    }
+
+    void setLocationAwareness(@NonNull final MoPub.LocationAwareness locationAwareness) {
+        Preconditions.checkNotNull(locationAwareness);
+
+        mLocationAwareness = locationAwareness;
+    }
+
+    int getLocationPrecision() {
+        return mLocationPrecision;
+    }
+
+    /**
+     * Sets the precision to use when the SDK's location awareness is set
+     * to {@link com.mopub.common.MoPub.LocationAwareness#TRUNCATED}.
+     */
+    void setLocationPrecision(int precision) {
+        mLocationPrecision = Math.min(Math.max(0, precision), DEFAULT_LOCATION_PRECISION);
+    }
+
+    void setMinimumLocationRefreshTimeMillis(
+            final long minimumLocationRefreshTimeMillis) {
+        mMinimumLocationRefreshTimeMillis = minimumLocationRefreshTimeMillis;
+    }
+
+    long getMinimumLocationRefreshTimeMillis() {
+        return mMinimumLocationRefreshTimeMillis;
+    }
+
     /**
      * Returns the last known location of the device using its GPS and network location providers.
      * This only checks Android location providers as often as
@@ -117,39 +157,41 @@ public class LocationService {
      * </ul>
      */
     @Nullable
-    public static Location getLastKnownLocation(@NonNull final Context context,
-            final int locationPrecision,
-            final @NonNull MoPub.LocationAwareness locationAwareness) {
-
+    public static Location getLastKnownLocation(@NonNull final Context context) {
         if (!MoPub.canCollectPersonalInformation()) {
             return null;
         }
 
         Preconditions.checkNotNull(context);
-        Preconditions.checkNotNull(locationAwareness);
+
+        final LocationService locationService = getInstance();
+
+        final MoPub.LocationAwareness locationAwareness = locationService.mLocationAwareness;
+        final int locationPrecision = locationService.mLocationPrecision;
 
         if (locationAwareness == MoPub.LocationAwareness.DISABLED) {
             return null;
         }
 
-        final LocationService locationService = getInstance();
-
         if (isLocationFreshEnough()) {
             return locationService.mLastKnownLocation;
         }
 
-        final Location gpsLocation = getLocationFromProvider(context, ValidLocationProvider.GPS);
-        final Location networkLocation = getLocationFromProvider(context, ValidLocationProvider.NETWORK);
-        final Location result = getMostRecentValidLocation(gpsLocation, networkLocation);
+        Location location = getLocationFromProvider(context, ValidLocationProvider.GPS);
+        if (location == null) {
+            location = getLocationFromProvider(context, ValidLocationProvider.NETWORK);
+        }
 
         // Truncate latitude/longitude to the number of digits specified by locationPrecision.
         if (locationAwareness == MoPub.LocationAwareness.TRUNCATED) {
-            truncateLocationLatLon(result, locationPrecision);
+            truncateLocationLatLon(location, locationPrecision);
         }
 
-        locationService.mLastKnownLocation = result;
-        locationService.mLocationLastUpdatedMillis = SystemClock.elapsedRealtime();
-        return result;
+        if (location != null) {
+            locationService.setLastLocation(location);
+        }
+
+        return locationService.mLastKnownLocation;
     }
 
     @VisibleForTesting
@@ -222,17 +264,27 @@ public class LocationService {
     }
 
     private static boolean isLocationFreshEnough() {
-        final LocationService locationService = LocationService.getInstance();
+        final LocationService locationService = getInstance();
         if (locationService.mLastKnownLocation == null) {
             return false;
         }
         return SystemClock.elapsedRealtime() - locationService.mLocationLastUpdatedMillis <=
-                MoPub.getMinimumLocationRefreshTimeMillis();
+                locationService.getMinimumLocationRefreshTimeMillis();
     }
 
     @Deprecated
     @VisibleForTesting
     public static void clearLastKnownLocation() {
         getInstance().mLastKnownLocation = null;
+    }
+
+    void setLastLocation(@Nullable Location location) {
+        if (location == null) {
+            return;
+        }
+        final LocationService locationService = getInstance();
+        locationService.mLastKnownLocation = location;
+        locationService.mLocationLastUpdatedMillis = SystemClock.elapsedRealtime();
+
     }
 }

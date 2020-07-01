@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -9,41 +9,36 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
+import android.content.res.TypedArray;
+import android.graphics.Point;
 import android.location.Location;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.text.TextUtils;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.FrameLayout;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.mopub.common.AdFormat;
-import com.mopub.common.AdReport;
-import com.mopub.common.MoPub;
+import com.mopub.common.MoPubReward;
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.util.ManifestUtils;
-import com.mopub.common.util.Reflection;
 import com.mopub.common.util.Visibility;
+import com.mopub.mobileads.base.R;
 import com.mopub.mobileads.factories.AdViewControllerFactory;
 
-import java.util.Map;
-import java.util.TreeMap;
+import static com.mopub.common.logging.MoPubLog.SdkLogEvent.CUSTOM;
+import static com.mopub.common.logging.MoPubLog.SdkLogEvent.CUSTOM_WITH_THROWABLE;
+import static java.lang.Math.ceil;
 
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.CLICKED;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.CUSTOM;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.DID_DISAPPEAR;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.LOAD_ATTEMPTED;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.LOAD_FAILED;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.LOAD_SUCCESS;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.SHOW_ATTEMPTED;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.SHOW_FAILED;
-import static com.mopub.common.logging.MoPubLog.AdLogEvent.SHOW_SUCCESS;
-import static com.mopub.common.logging.MoPubLog.SdkLogEvent.ERROR;
-import static com.mopub.mobileads.MoPubErrorCode.ADAPTER_NOT_FOUND;
+public class MoPubView extends FrameLayout implements MoPubAd {
 
-public class MoPubView extends FrameLayout {
     public interface BannerAdListener {
-        public void onBannerLoaded(MoPubView banner);
+        public void onBannerLoaded(@NonNull MoPubView banner);
         public void onBannerFailed(MoPubView banner, MoPubErrorCode errorCode);
         public void onBannerClicked(MoPubView banner);
         public void onBannerExpanded(MoPubView banner);
@@ -51,18 +46,74 @@ public class MoPubView extends FrameLayout {
         public void onBannerRequest(MoPubView banner);
     }
 
-    private static final String CUSTOM_EVENT_BANNER_ADAPTER_FACTORY =
-            "com.mopub.mobileads.factories.CustomEventBannerAdapterFactory";
+    /**
+     * MoPubAdSizeInt
+     *
+     * Integer values that represent the possible predefined ad heights in dp.
+     */
+    interface MoPubAdSizeInt {
+        int MATCH_VIEW_INT = -1;
+        int HEIGHT_50_INT = 50;
+        int HEIGHT_90_INT = 90;
+        int HEIGHT_250_INT = 250;
+        int HEIGHT_280_INT = 280;
+    }
+
+    /**
+     * MoPubAdSize
+     *
+     * These predefined constants are used to specify the desired height for an ad.
+     */
+    public enum MoPubAdSize implements MoPubAdSizeInt {
+
+        MATCH_VIEW(MATCH_VIEW_INT),
+        HEIGHT_50(HEIGHT_50_INT),
+        HEIGHT_90(HEIGHT_90_INT),
+        HEIGHT_250(HEIGHT_250_INT),
+        HEIGHT_280(HEIGHT_280_INT);
+
+        final private int mSizeInt;
+
+        MoPubAdSize(final int sizeInt) {
+            this.mSizeInt = sizeInt;
+        }
+
+        /**
+         * This valueOf overload is used to get the associated the MoPubAdSize enum from an int (likely
+         * from XML layout).
+         *
+         * @param adSizeInt The int value for which the MoPubAdSize is needed.
+         * @return The MoPubAdSize associated with the level. Will return CUSTOM by default.
+         */
+        @NonNull
+        public static MoPubAdSize valueOf(final int adSizeInt) {
+            switch (adSizeInt) {
+                case HEIGHT_50_INT:
+                    return HEIGHT_50;
+                case HEIGHT_90_INT:
+                    return HEIGHT_90;
+                case HEIGHT_250_INT:
+                    return HEIGHT_250;
+                case HEIGHT_280_INT:
+                    return HEIGHT_280;
+                case MATCH_VIEW_INT:
+                default:
+                    return MATCH_VIEW;
+            }
+        }
+
+        public int toInt() {
+            return mSizeInt;
+        }
+    }
 
     @Nullable
     protected AdViewController mAdViewController;
-    // mCustomEventBannerAdapter must be a CustomEventBannerAdapter
-    protected Object mCustomEventBannerAdapter;
 
     private Context mContext;
     private int mScreenVisibility;
     private BroadcastReceiver mScreenStateReceiver;
-
+    private MoPubView.MoPubAdSize mMoPubAdSize;
     private BannerAdListener mBannerAdListener;
 
     public MoPubView(Context context) {
@@ -72,6 +123,9 @@ public class MoPubView extends FrameLayout {
     public MoPubView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
+        mMoPubAdSize = getMoPubAdSizeFromAttributeSet(context, attrs,
+                MoPubAdSize.MATCH_VIEW);
+
         ManifestUtils.checkWebViewActivitiesDeclared(context);
 
         mContext = context;
@@ -80,8 +134,24 @@ public class MoPubView extends FrameLayout {
         setHorizontalScrollBarEnabled(false);
         setVerticalScrollBarEnabled(false);
 
-        mAdViewController = AdViewControllerFactory.create(context, this);
+        setAdViewController(AdViewControllerFactory.create(context, this));
         registerScreenStateBroadcastReceiver();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            setWindowInsets(getRootWindowInsets());
+        }
+    }
+
+    @Override
+    public WindowInsets onApplyWindowInsets(WindowInsets insets) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            setWindowInsets(insets);
+        }
+        return super.onApplyWindowInsets(insets);
     }
 
     private void registerScreenStateBroadcastReceiver() {
@@ -114,11 +184,9 @@ public class MoPubView extends FrameLayout {
         }
     }
 
-    public void loadAd() {
-        if (mAdViewController != null) {
-            MoPubLog.log(LOAD_ATTEMPTED);
-            mAdViewController.loadAd();
-        }
+    public void loadAd(final MoPubAdSize moPubAdSize) {
+        setAdSize(moPubAdSize);
+        loadAd();
     }
 
     /*
@@ -134,90 +202,6 @@ public class MoPubView extends FrameLayout {
             mAdViewController.cleanup();
             mAdViewController = null;
         }
-
-        if (mCustomEventBannerAdapter != null) {
-            invalidateAdapter();
-            mCustomEventBannerAdapter = null;
-        }
-    }
-
-    private void invalidateAdapter() {
-        if (mCustomEventBannerAdapter != null) {
-            try {
-                new Reflection.MethodBuilder(mCustomEventBannerAdapter, "invalidate")
-                        .setAccessible()
-                        .execute();
-            } catch (Exception e) {
-                MoPubLog.log(ERROR, "Error invalidating adapter", e);
-            }
-        }
-    }
-
-    @NonNull
-    Integer getAdTimeoutDelay(int defaultValue) {
-        if (mAdViewController == null) {
-            return defaultValue;
-        }
-        return mAdViewController.getAdTimeoutDelay(defaultValue);
-    }
-
-    protected boolean loadFailUrl(@NonNull final MoPubErrorCode errorCode) {
-        if (mAdViewController == null) {
-            return false;
-        }
-        return mAdViewController.loadFailUrl(errorCode);
-    }
-
-    protected void loadCustomEvent(String customEventClassName, Map<String, String> serverExtras) {
-        if (mAdViewController == null) {
-            return;
-        }
-        if (TextUtils.isEmpty(customEventClassName)) {
-            MoPubLog.log(CUSTOM, "Couldn't invoke custom event because the server did not specify one.");
-            loadFailUrl(ADAPTER_NOT_FOUND);
-            return;
-        }
-
-        if (mCustomEventBannerAdapter != null) {
-            invalidateAdapter();
-        }
-
-        MoPubLog.log(CUSTOM, "Loading custom event adapter.");
-
-        if (Reflection.classFound(CUSTOM_EVENT_BANNER_ADAPTER_FACTORY)) {
-            try {
-                final Class<?> adapterFactoryClass = Class.forName(CUSTOM_EVENT_BANNER_ADAPTER_FACTORY);
-                mCustomEventBannerAdapter = new Reflection.MethodBuilder(null, "create")
-                        .setStatic(adapterFactoryClass)
-                        .addParam(MoPubView.class, this)
-                        .addParam(String.class, customEventClassName)
-                        .addParam(Map.class, serverExtras)
-                        .addParam(long.class, mAdViewController.getBroadcastIdentifier())
-                        .addParam(AdReport.class, mAdViewController.getAdReport())
-                        .execute();
-                new Reflection.MethodBuilder(mCustomEventBannerAdapter, "loadAd")
-                        .setAccessible()
-                        .execute();
-            } catch (Exception e) {
-                MoPubLog.log(ERROR, "Error loading custom event", e);
-            }
-        } else {
-            MoPubLog.log(CUSTOM, "Could not load custom event -- missing banner module");
-        }
-    }
-
-    protected void registerClick() {
-        if (mAdViewController != null) {
-            mAdViewController.registerClick();
-
-            // Let any listeners know that an ad was clicked
-            adClicked();
-        }
-    }
-
-    protected void trackNativeImpression() {
-        MoPubLog.log(CUSTOM, "Tracking impression. MoPubView internal.");
-        if (mAdViewController != null) mAdViewController.trackImpression();
     }
 
     @Override
@@ -247,91 +231,68 @@ public class MoPubView extends FrameLayout {
         }
     }
 
-    protected void adLoaded() {
-        MoPubLog.log(LOAD_SUCCESS);
-        if (mBannerAdListener != null) {
-            mBannerAdListener.onBannerLoaded(this);
+    private MoPubAdSize getMoPubAdSizeFromAttributeSet(
+            final Context context,
+            final AttributeSet attrs,
+            MoPubAdSize defaultMoPubAdSize) {
+        TypedArray a = context.getTheme().obtainStyledAttributes(
+                attrs,
+                R.styleable.MoPubView,
+                0, 0);
+
+        MoPubAdSize returnValue = defaultMoPubAdSize;
+
+        try {
+            final int moPubAdSizeInt = a.getInteger(R.styleable.MoPubView_moPubAdSize,
+                    defaultMoPubAdSize.toInt());
+            returnValue = MoPubAdSize.valueOf(moPubAdSizeInt);
+        } catch(Resources.NotFoundException rnfe) {
+            MoPubLog.log(CUSTOM_WITH_THROWABLE,
+                    "Encountered a problem while setting the MoPubAdSize",
+                    rnfe);
+        } finally {
+            a.recycle();
         }
+
+        return returnValue;
     }
 
-    protected void adFailed(MoPubErrorCode errorCode) {
-        MoPubLog.log(LOAD_FAILED, errorCode.getIntCode(), errorCode);
-        if (mBannerAdListener != null) {
-            mBannerAdListener.onBannerFailed(this, errorCode);
+    @Override
+    @NonNull
+    public Point resolveAdSize() {
+        final Point resolvedAdSize = new Point(getWidth(), getHeight());
+        final ViewGroup.LayoutParams layoutParams = getLayoutParams();
+
+        // If WRAP_CONTENT or MATCH_PARENT
+        if (getParent() != null && layoutParams != null && layoutParams.width < 0) {
+            resolvedAdSize.x = ((View) getParent()).getWidth();
         }
+
+        // MoPubAdSize only applies to height
+        if (mMoPubAdSize != MoPubAdSize.MATCH_VIEW) {
+            final float density = mContext.getResources().getDisplayMetrics().density;
+            resolvedAdSize.y = (int) ( ceil(mMoPubAdSize.toInt() * density) );
+        } else if (getParent() != null && layoutParams != null && layoutParams.height < 0) {
+            resolvedAdSize.y = ((View) getParent()).getHeight();
+        }
+
+        return resolvedAdSize;
     }
 
-    protected void adPresentedOverlay() {
-        if (mBannerAdListener != null) {
-            mBannerAdListener.onBannerExpanded(this);
-        }
-    }
-
-    protected void adClosed() {
-        MoPubLog.log(DID_DISAPPEAR);
-        if (mBannerAdListener != null) {
-            mBannerAdListener.onBannerCollapsed(this);
-        }
-    }
-
-    protected void adClicked() {
-        MoPubLog.log(CLICKED);
-        if (mBannerAdListener != null) {
-            mBannerAdListener.onBannerClicked(this);
-        }
-    }
-
-    protected void creativeDownloaded() {
-        if (mAdViewController != null) {
-            mAdViewController.creativeDownloadSuccess();
-        }
-        adLoaded();
+    @Override
+    @NonNull
+    public AdFormat getAdFormat() {
+        return AdFormat.BANNER;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public void setAdUnitId(String adUnitId) {
-        if (mAdViewController != null) mAdViewController.setAdUnitId(adUnitId);
-    }
-
-    public String getAdUnitId() {
-        return (mAdViewController != null) ? mAdViewController.getAdUnitId() : null;
-    }
-
-    public void setKeywords(String keywords) {
-        if (mAdViewController != null) mAdViewController.setKeywords(keywords);
-    }
-
-    public String getKeywords() {
-        return (mAdViewController != null) ? mAdViewController.getKeywords() : null;
-    }
-
-    public void setUserDataKeywords(String userDataKeywords) {
-        if (mAdViewController != null && MoPub.canCollectPersonalInformation()) {
-            mAdViewController.setUserDataKeywords(userDataKeywords);
-        }
-    }
-
-    public String getUserDataKeywords() {
-        return (mAdViewController != null && MoPub.canCollectPersonalInformation()) ? mAdViewController.getUserDataKeywords() : null;
-    }
-
+    /**
+     * @deprecated As of 5.12.0. The location is set automatically based on GPS or Network provider value
+     * @param location is ignored
+     */
+    @Deprecated
     public void setLocation(Location location) {
-        if (mAdViewController != null && MoPub.canCollectPersonalInformation()) {
-            mAdViewController.setLocation(location);
-        }
-    }
-
-    public Location getLocation() {
-        return (mAdViewController != null && MoPub.canCollectPersonalInformation()) ? mAdViewController.getLocation() : null;
-    }
-
-    public int getAdWidth() {
-        return (mAdViewController != null) ? mAdViewController.getAdWidth() : 0;
-    }
-
-    public int getAdHeight() {
-        return (mAdViewController != null) ? mAdViewController.getAdHeight() : 0;
     }
 
     public Activity getActivity() {
@@ -346,44 +307,9 @@ public class MoPubView extends FrameLayout {
         return mBannerAdListener;
     }
 
-    public void setLocalExtras(Map<String, Object> localExtras) {
-        if (mAdViewController != null) mAdViewController.setLocalExtras(localExtras);
-    }
-
-    public Map<String, Object> getLocalExtras() {
-        if (mAdViewController != null) {
-            return mAdViewController.getLocalExtras();
-        }
-        return new TreeMap<String, Object>();
-    }
-
     public void setAutorefreshEnabled(boolean enabled) {
         if (mAdViewController != null) {
             mAdViewController.setShouldAllowAutoRefresh(enabled);
-        }
-    }
-
-    void pauseAutoRefresh() {
-        if (mAdViewController != null) {
-            mAdViewController.pauseRefresh();
-        }
-    }
-
-    void resumeAutoRefresh() {
-        if (mAdViewController != null) {
-            mAdViewController.resumeRefresh();
-        }
-    }
-
-    void engageOverlay() {
-        if (mAdViewController != null) {
-            mAdViewController.engageOverlay();
-        }
-    }
-
-    void dismissOverlay() {
-        if (mAdViewController != null) {
-            mAdViewController.dismissOverlay();
         }
     }
 
@@ -393,16 +319,6 @@ public class MoPubView extends FrameLayout {
             MoPubLog.log(CUSTOM, "Can't get autorefresh status for destroyed MoPubView. " +
                     "Returning false.");
             return false;
-        }
-    }
-
-    public void setAdContentView(View view) {
-        MoPubLog.log(SHOW_ATTEMPTED);
-        if (mAdViewController != null) {
-            mAdViewController.setAdContentView(view);
-            MoPubLog.log(SHOW_SUCCESS);
-        } else {
-            MoPubLog.log(SHOW_FAILED);
         }
     }
 
@@ -420,22 +336,33 @@ public class MoPubView extends FrameLayout {
     }
 
     public void forceRefresh() {
-        if (mCustomEventBannerAdapter != null) {
-            invalidateAdapter();
-            mCustomEventBannerAdapter = null;
-        }
-
         if (mAdViewController != null) {
             mAdViewController.forceRefresh();
         }
     }
 
-    AdViewController getAdViewController() {
+    public void setAdSize(final MoPubAdSize moPubAdSize) {
+        mMoPubAdSize = moPubAdSize;
+    }
+
+    public MoPubAdSize getAdSize() {
+        return mMoPubAdSize;
+    }
+
+    void setWindowInsets(@NonNull final WindowInsets windowInsets) {
+        if (mAdViewController != null) {
+            mAdViewController.setWindowInsets(windowInsets);
+        }
+    }
+
+    @Override
+    public AdViewController getAdViewController() {
         return mAdViewController;
     }
 
-    public AdFormat getAdFormat() {
-        return AdFormat.BANNER;
+    @Override
+    public void setAdViewController(@Nullable AdViewController adViewController) {
+        mAdViewController = adViewController;
     }
 
     /**
@@ -454,4 +381,88 @@ public class MoPubView extends FrameLayout {
     public String getClickTrackingUrl() {
         return null;
     }
+
+    @Override
+    public void onAdLoaded() {
+        if (mAdViewController != null) {
+            mAdViewController.show(); // inline ads immediately show themselves
+        }
+
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerLoaded(MoPubView.this);
+        }
+    }
+
+    @Override
+    public void onAdLoadFailed(@NonNull MoPubErrorCode errorCode) {
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerFailed(MoPubView.this, errorCode);
+        }
+    }
+
+    @Override
+    public void onAdFailed(@NonNull MoPubErrorCode errorCode) {
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerFailed(MoPubView.this, errorCode);
+        }
+    }
+
+    @Override
+    public void onAdExpanded() {
+        if (mAdViewController != null) {
+            mAdViewController.engageOverlay();
+        }
+
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerExpanded(MoPubView.this);
+        }
+    }
+
+    @Override
+    public void onAdCollapsed() {
+        if (mAdViewController != null) {
+            mAdViewController.dismissOverlay();
+        }
+
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerCollapsed(MoPubView.this);
+        }
+    }
+
+    @Override
+    public void onAdClicked() {
+        if (mAdViewController != null) {
+            mAdViewController.registerClick();
+        }
+
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerClicked(MoPubView.this);
+        }
+    }
+
+    @Override
+    public void onAdPauseAutoRefresh() {
+        if (mAdViewController != null) {
+            mAdViewController.engageOverlay();
+        }
+    }
+
+    @Override
+    public void onAdResumeAutoRefresh() {
+        if (mAdViewController != null) {
+            mAdViewController.dismissOverlay();
+        }
+    }
+
+    @Override
+    public void onAdShown() { /* no-op for inline */ }
+
+    @Override
+    public void onAdImpression() { /* no-op for inline */ }
+
+    @Override
+    public void onAdDismissed() { /* no-op for inline */ }
+
+    @Override
+    public void onAdComplete(@Nullable final MoPubReward moPubReward) { /* UNUSED */ }
 }

@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -38,7 +38,6 @@ import org.robolectric.shadows.ShadowLooper;
 
 import java.net.MalformedURLException;
 import java.util.List;
-import java.util.logging.Level;
 
 import static android.Manifest.permission.ACCESS_NETWORK_STATE;
 import static android.Manifest.permission.INTERNET;
@@ -88,7 +87,7 @@ public class MoPubNativeTest {
     public void tearDown() throws Exception {
         MoPubIdentifierTest.clearPreferences(context);
         reset(methodBuilder);
-        new Reflection.MethodBuilder(null, "clearAdvancedBidders")
+        new Reflection.MethodBuilder(null, "resetMoPub")
                 .setStatic(MoPub.class)
                 .setAccessible()
                 .execute();

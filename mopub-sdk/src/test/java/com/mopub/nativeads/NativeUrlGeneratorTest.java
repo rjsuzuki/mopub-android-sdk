@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -14,13 +14,14 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Uri;
-import android.os.Build;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
 
+import com.mopub.common.AppEngineInfo;
+import com.mopub.common.BaseUrlGenerator;
 import com.mopub.common.LocationService;
 import com.mopub.common.MoPub;
 import com.mopub.common.privacy.ConsentStatus;
@@ -53,6 +54,7 @@ import java.util.List;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 import static android.Manifest.permission.ACCESS_NETWORK_STATE;
 import static org.fest.assertions.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
@@ -67,6 +69,8 @@ public class NativeUrlGeneratorTest {
     private static final String TEST_BUNDLE = "test.bundle";
     private static final int TEST_SCREEN_WIDTH = 320;
     private static final int TEST_SCREEN_HEIGHT = 470;
+    private static final int TEST_SCREEN_SAFE_WIDTH = 0;
+    private static final int TEST_SCREEN_SAFE_HEIGHT = 0;
     private static final float TEST_DENSITY = 1.0f;
     private Activity context;
     private NativeUrlGenerator subject;
@@ -105,24 +109,20 @@ public class NativeUrlGeneratorTest {
         when(mockPackageManager.getPackageInfo(any(String.class), anyInt())).thenReturn(mockPackageInfo);
         when(spyApplicationContext.getPackageManager()).thenReturn(mockPackageManager);
 
-        // Only do this on Android 17+ because getRealSize doesn't exist before then.
-        // This is the default pathway.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-            final WindowManager mockWindowManager = mock(WindowManager.class);
-            final Display mockDisplay = mock(Display.class);
-            doAnswer(new Answer() {
-                @Override
-                public Object answer(final InvocationOnMock invocationOnMock) {
-                    final Point point = (Point) invocationOnMock.getArguments()[0];
-                    point.x = TEST_SCREEN_WIDTH;
-                    point.y = TEST_SCREEN_HEIGHT;
-                    return null;
-                }
-            }).when(mockDisplay).getRealSize(any(Point.class));
-            when(mockWindowManager.getDefaultDisplay()).thenReturn(mockDisplay);
-            when(spyApplicationContext.getSystemService(Context.WINDOW_SERVICE)).thenReturn(mockWindowManager);
-            when(context.getApplicationContext()).thenReturn(spyApplicationContext);
-        }
+        final WindowManager mockWindowManager = mock(WindowManager.class);
+        final Display mockDisplay = mock(Display.class);
+        doAnswer(new Answer() {
+            @Override
+            public Object answer(final InvocationOnMock invocationOnMock) {
+                final Point point = (Point) invocationOnMock.getArguments()[0];
+                point.x = TEST_SCREEN_WIDTH;
+                point.y = TEST_SCREEN_HEIGHT;
+                return null;
+            }
+        }).when(mockDisplay).getRealSize(any(Point.class));
+        when(mockWindowManager.getDefaultDisplay()).thenReturn(mockDisplay);
+        when(spyApplicationContext.getSystemService(Context.WINDOW_SERVICE)).thenReturn(mockWindowManager);
+        when(context.getApplicationContext()).thenReturn(spyApplicationContext);
 
         mockPersonalInfoManager = mock(PersonalInfoManager.class);
         when(mockPersonalInfoManager.getPersonalInfoConsentStatus()).thenReturn(ConsentStatus.UNKNOWN);
@@ -138,10 +138,12 @@ public class NativeUrlGeneratorTest {
     @After
     public void tearDown() throws Exception {
         MoPubIdentifierTest.clearPreferences(context);
-        new Reflection.MethodBuilder(null, "clearAdvancedBidders")
+        new Reflection.MethodBuilder(null, "resetMoPub")
                 .setStatic(MoPub.class)
                 .setAccessible()
                 .execute();
+        BaseUrlGenerator.setAppEngineInfo(null);
+        BaseUrlGenerator.setWrapperVersion("");
     }
 
     @Test
@@ -294,14 +296,8 @@ public class NativeUrlGeneratorTest {
     }
 
     @Test
-    public void generateUrlString_whenLocationServiceGpsProviderHasMostRecentLocation_shouldUseLocationServiceValue() {
+    public void generateUrlString_shouldUseLocationServiceValue() {
         when(mockPersonalInfoManager.canCollectPersonalInformation()).thenReturn(true);
-
-        Location locationFromDeveloper = new Location("");
-        locationFromDeveloper.setLatitude(42);
-        locationFromDeveloper.setLongitude(-42);
-        locationFromDeveloper.setAccuracy(3.5f);
-        locationFromDeveloper.setTime(1000);
 
         // Mock out the LocationManager's last known location to be more recent than the
         // developer-supplied location.
@@ -315,7 +311,6 @@ public class NativeUrlGeneratorTest {
         shadowLocationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, locationFromSdk);
 
         RequestParameters requestParameters = new RequestParameters.Builder()
-                .location(locationFromDeveloper)
                 .build();
         subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
         String adUrl = subject.withRequest(requestParameters)
@@ -363,79 +358,6 @@ public class NativeUrlGeneratorTest {
     }
 
     @Test
-    public void generateUrlString_whenDeveloperSuppliesMoreRecentLocationThanLocationService_shouldUseDeveloperSuppliedLocation() {
-
-        when(mockPersonalInfoManager.canCollectPersonalInformation()).thenReturn(true);
-
-        Location locationFromDeveloper = new Location("");
-        locationFromDeveloper.setLatitude(42);
-        locationFromDeveloper.setLongitude(-42);
-        locationFromDeveloper.setAccuracy(3.5f);
-        locationFromDeveloper.setTime(System.currentTimeMillis() - 777777);
-
-        ShadowLocationManager shadowLocationManager = Shadows.shadowOf(
-                (LocationManager) RuntimeEnvironment.application.getSystemService(Context.LOCATION_SERVICE));
-
-        // Mock out the LocationManager's last known location to be older than the
-        // developer-supplied location.
-        Location olderLocation = new Location("");
-        olderLocation.setLatitude(40);
-        olderLocation.setLongitude(-105);
-        olderLocation.setAccuracy(8.0f);
-        olderLocation.setTime(System.currentTimeMillis() - 888888);
-        shadowLocationManager.setLastKnownLocation(LocationManager.GPS_PROVIDER, olderLocation);
-
-        RequestParameters requestParameters = new RequestParameters.Builder()
-                .location(locationFromDeveloper)
-                .build();
-        subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
-        String adUrl = subject.withRequest(requestParameters)
-                .generateUrlString("ads.mopub.com");
-        assertThat(getParameterFromRequestUrl(adUrl, "ll")).isEqualTo("42.0,-42.0");
-        assertThat(getParameterFromRequestUrl(adUrl, "lla")).isEqualTo("3");
-        assertThat(getParameterFromRequestUrl(adUrl, "llsdk")).isEmpty();
-        // Only test to the full second (as there may be small differences)
-        assertThat(getParameterFromRequestUrl(adUrl, "llf")).startsWith("777");
-        assertThat(getParameterFromRequestUrl(adUrl, "llf").length()).isEqualTo(6);
-    }
-
-    @Test
-    public void generateUrlString_whenLocationServiceNetworkProviderHasMostRecentLocation_shouldUseLocationServiceValue() {
-        when(mockPersonalInfoManager.canCollectPersonalInformation()).thenReturn(true);
-
-        Location locationFromDeveloper = new Location("");
-        locationFromDeveloper.setLatitude(42);
-        locationFromDeveloper.setLongitude(-42);
-        locationFromDeveloper.setAccuracy(3.5f);
-        locationFromDeveloper.setTime(1000);
-
-        // Mock out the LocationManager's last known location to be more recent than the
-        // developer-supplied location.
-        ShadowLocationManager shadowLocationManager = Shadows.shadowOf(
-                (LocationManager) RuntimeEnvironment.application.getSystemService(Context.LOCATION_SERVICE));
-        Location locationFromSdk = new Location("");
-        locationFromSdk.setLatitude(38);
-        locationFromSdk.setLongitude(-123);
-        locationFromSdk.setAccuracy(5.0f);
-        locationFromSdk.setTime(System.currentTimeMillis() - 123456);
-        shadowLocationManager.setLastKnownLocation(LocationManager.NETWORK_PROVIDER,
-                locationFromSdk);
-
-        RequestParameters requestParameters = new RequestParameters.Builder()
-                .location(locationFromDeveloper)
-                .build();
-        subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
-        String adUrl = subject.withRequest(requestParameters)
-                .generateUrlString("ads.mopub.com");
-        assertThat(getParameterFromRequestUrl(adUrl, "ll")).isEqualTo("38.0,-123.0");
-        assertThat(getParameterFromRequestUrl(adUrl, "lla")).isEqualTo("5");
-        assertThat(getParameterFromRequestUrl(adUrl, "llsdk")).isEqualTo("1");
-        // Only test to the full second (as there may be small differences)
-        assertThat(getParameterFromRequestUrl(adUrl, "llf")).startsWith("123");
-        assertThat(getParameterFromRequestUrl(adUrl, "llf").length()).isEqualTo(6);
-    }
-
-    @Test
     public void generateUrlString_withOnlyAdUnitSet_shouldReturnMinimumUrl() {
         subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
         final String adUrl = generateMinimumUrlString();
@@ -448,6 +370,10 @@ public class NativeUrlGeneratorTest {
                         "&bundle=" + TEST_BUNDLE +
                         "&z=-0700" +
                         "&o=p" +
+                        "&cw=" +
+                        TEST_SCREEN_SAFE_WIDTH +
+                        "&ch=" +
+                        TEST_SCREEN_SAFE_HEIGHT +
                         "&w=" +
                         TEST_SCREEN_WIDTH +
                         "&h=" +
@@ -456,6 +382,7 @@ public class NativeUrlGeneratorTest {
                         TEST_DENSITY +
                         "&ct=3&av=" + Uri.encode(BuildConfig.VERSION_NAME) +
                         "&udid=mp_tmpl_advertising_id&dnt=mp_tmpl_do_not_track" +
+                        "&mid=mp_tmpl_mopub_id" +
                         "&gdpr_applies=0" +
                         "&current_consent_status=unknown");
     }
@@ -495,6 +422,34 @@ public class NativeUrlGeneratorTest {
 
         String requestString = generateMinimumUrlString();
         assertThat(getParameterFromRequestUrl(requestString, "ll")).isNullOrEmpty();
+    }
+
+    @Test
+    public void generateUrlString_whenEngineInfoIsNotSet_shouldIncludeEngineInfo() {
+        subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
+        String adUrl = generateMinimumUrlString();
+
+        assertThat(getParameterFromRequestUrl(adUrl, "e_name")).isNullOrEmpty();
+        assertThat(getParameterFromRequestUrl(adUrl, "e_ver")).isNullOrEmpty();
+    }
+
+    @Test
+    public void generateUrlString_whenEngineInfoIsSet_shouldIncludeEngineInfo() {
+        subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
+        MoPub.setEngineInformation(new AppEngineInfo("ename", "eversion"));
+        String adUrl = generateMinimumUrlString();
+
+        assertEquals(getParameterFromRequestUrl(adUrl, "e_name"), "ename");
+        assertEquals(getParameterFromRequestUrl(adUrl, "e_ver"), "eversion");
+    }
+
+    @Test
+    public void generateUrlString_withWrapperVersion_shouldIncludeWrapperVersion() {
+        subject = new NativeUrlGenerator(context).withAdUnitId(AD_UNIT_ID);
+        MoPub.setWrapperVersion("NativeUrlGeneratorTestVersion");
+        String adUrl = generateMinimumUrlString();
+
+        assertEquals(getParameterFromRequestUrl(adUrl, "w_ver"), "NativeUrlGeneratorTestVersion");
     }
 
     private List<String> getDesiredAssetsListFromRequestUrlString(String requestString) {

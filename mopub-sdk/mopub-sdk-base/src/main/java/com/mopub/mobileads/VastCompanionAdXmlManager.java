@@ -1,11 +1,11 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.mobileads;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import android.text.TextUtils;
 
 import com.mopub.common.Preconditions;
@@ -113,7 +113,7 @@ class VastCompanionAdXmlManager {
         for (final Node trackerNode : trackerNodes) {
             String uri = XmlUtils.getNodeValue(trackerNode);
             if (!TextUtils.isEmpty(uri)) {
-                companionAdClickTrackers.add(new VastTracker(uri));
+                companionAdClickTrackers.add(new VastTracker.Builder(uri).build());
             }
         }
         return companionAdClickTrackers;
@@ -148,7 +148,7 @@ class VastCompanionAdXmlManager {
         for (final Node trackerNode : trackerNodes) {
             final String trackerUrl = XmlUtils.getNodeValue(trackerNode);
             if (trackerUrl != null) {
-                companionCreativeViewTrackers.add(new VastTracker(trackerUrl));
+                companionCreativeViewTrackers.add(new VastTracker.Builder(trackerUrl).build());
             }
         }
 

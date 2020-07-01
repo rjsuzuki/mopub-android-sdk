@@ -1,19 +1,22 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.common;
 
+import android.view.View;
 import android.webkit.CookieSyncManager;
 import android.webkit.WebView;
 
 import com.mopub.common.test.support.SdkTestRunner;
+import com.mopub.common.util.UtilsTest;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 
+import static org.fest.assertions.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,11 +29,18 @@ public class MoPubBrowserTest {
 
     @Before
     public void setUp() {
-        subject = Robolectric.buildActivity(MoPubBrowser.class).create().get();
+        subject = Robolectric.buildActivity(MoPubBrowser.class).create().visible().start().get();
         CookieSyncManager.createInstance(subject);
 
         mockWebView = mock(WebView.class);
         subject.setWebView(mockWebView);
+    }
+
+    @Test
+    public void create_callsHideNavigationBar(){
+        View decorView = subject.getWindow().getDecorView();
+
+        assertThat(decorView.getSystemUiVisibility()).isEqualTo(UtilsTest.FLAGS);
     }
 
     @Test

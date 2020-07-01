@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -7,6 +7,7 @@ package com.mopub.mobileads;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Point;
 import android.location.Location;
 import android.net.ConnectivityManager;
 import android.net.Uri;
@@ -26,6 +27,7 @@ import com.mopub.common.util.Reflection;
 import com.mopub.common.util.test.support.TestMethodBuilderFactory;
 import com.mopub.mobileads.test.support.MoPubShadowConnectivityManager;
 import com.mopub.mobileads.test.support.MoPubShadowTelephonyManager;
+import com.mopub.mobileads.test.support.TestBaseAdFactory;
 import com.mopub.mobileads.test.support.ThreadUtils;
 import com.mopub.network.AdLoader;
 import com.mopub.network.AdResponse;
@@ -55,12 +57,10 @@ import org.robolectric.shadows.ShadowLooper;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import static com.mopub.common.VolleyRequestMatcher.isUrl;
 import static org.fest.assertions.api.Assertions.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -122,7 +122,7 @@ public class AdViewControllerTest {
         reset(methodBuilder);
         response = new AdResponse.Builder()
                 .setAdUnitId(mAdUnitId)
-                .setCustomEventClassName("customEvent")
+                .setBaseAdClassName("customEvent")
                 .setClickTrackingUrl("clickUrl")
                 .setImpressionTrackingUrls(Arrays.asList("impressionUrl1", "impressionUrl2"))
                 .setImpressionData(mockImpressionData)
@@ -139,18 +139,47 @@ public class AdViewControllerTest {
     @After
     public void tearDown() throws Exception {
         reset(methodBuilder);
-        new Reflection.MethodBuilder(null, "clearAdvancedBidders")
+        new Reflection.MethodBuilder(null, "resetMoPub")
                 .setStatic(MoPub.class)
                 .setAccessible()
                 .execute();
     }
 
     @Test
-    public void cleanup_shouldNotHoldViewOrUrlGenerator() {
+    public void cleanup_shouldNotHoldMoPubAdOrUrlGenerator() {
         subject.cleanup();
 
-        assertThat(subject.getMoPubView()).isNull();
+        assertThat(subject.getMoPubAd()).isNull();
         assertThat(subject.generateAdUrl()).isNull();
+    }
+
+    @Test
+    public void cleanup_shouldCallInvalidateAdapter() {
+        final AdViewController subjectSpy = spy(subject);
+
+        subjectSpy.cleanup();
+
+        verify(subjectSpy).invalidateAdapter();
+    }
+
+    @Test
+    public void forceRefresh_shouldCallInvalidateAdapter() {
+        final AdViewController subjectSpy = spy(subject);
+
+        subjectSpy.forceRefresh();
+
+        verify(subjectSpy).invalidateAdapter();
+    }
+
+    @Test
+    public void invalidateAdapter_withNonNullAdapter_shouldCallAdapterInvalidate() {
+        final AdViewController subjectSpy = spy(subject);
+        final AdAdapter mockAdAdapter = mock(AdAdapter.class);
+        when(subjectSpy.getAdAdapter()).thenReturn(mockAdAdapter);
+
+        subjectSpy.invalidateAdapter();
+
+        verify(mockAdAdapter).invalidate();
     }
 
     @Test
@@ -180,7 +209,7 @@ public class AdViewControllerTest {
         subject.setKeywords("keywords");
         subject.setUserDataKeywords("user_data_keywords");
         subject.setLocation(new Location(""));
-        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(mockMoPubView.getContext(), false);
+        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(subject.getContext());
 
         final String adUrl = subject.generateAdUrl();
         assertThat(getParameterFromRequestUrl(adUrl, "q")).isEqualTo("keywords");
@@ -197,11 +226,38 @@ public class AdViewControllerTest {
         subject.setKeywords("keywords");
         subject.setUserDataKeywords("user_data_keywords");
         subject.setLocation(new Location(""));
-        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(mockMoPubView.getContext(), false);
+        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(subject.getContext());
 
         final String adUrl = subject.generateAdUrl();
         assertThat(getParameterFromRequestUrl(adUrl, "q")).isEqualTo("keywords");
         assertThat(getParameterFromRequestUrl(adUrl, "user_data_q")).isEqualTo("user_data_keywords");
+    }
+
+    @Test
+    public void generateAdUrl_withoutSetRequestedAdSize_shouldSetRequestedAdSizeToZeroZero() {
+        subject.setAdUnitId("abc123");
+        subject.setKeywords("keywords");
+        subject.setUserDataKeywords("user_data_keywords");
+        subject.setLocation(new Location(""));
+        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(subject.getContext());
+
+        final String adUrl = subject.generateAdUrl();
+        assertThat(getParameterFromRequestUrl(adUrl, "cw")).isEqualTo("0");
+        assertThat(getParameterFromRequestUrl(adUrl, "ch")).isEqualTo("0");
+    }
+
+    @Test
+    public void generateAdUrl_withSetRequestedAdSize_shouldSetRequestedAdSize() {
+        subject.setAdUnitId("abc123");
+        subject.setKeywords("keywords");
+        subject.setUserDataKeywords("user_data_keywords");
+        subject.setLocation(new Location(""));
+        subject.setRequestedAdSize(new Point(120, 240));
+        WebViewAdUrlGenerator mUrlGenerator = new WebViewAdUrlGenerator(subject.getContext());
+
+        final String adUrl = subject.generateAdUrl();
+        assertThat(getParameterFromRequestUrl(adUrl, "cw")).isEqualTo("120");
+        assertThat(getParameterFromRequestUrl(adUrl, "ch")).isEqualTo("240");
     }
 
     @Test
@@ -213,7 +269,7 @@ public class AdViewControllerTest {
         subject.adDidFail(MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR);
 
         assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
-        verify(mockMoPubView).adFailed(MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR);
+        verify(mockMoPubView).onAdLoadFailed(MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR);
     }
 
     @Test
@@ -226,7 +282,7 @@ public class AdViewControllerTest {
         subject.adDidFail(MoPubErrorCode.ADAPTER_CONFIGURATION_ERROR);
 
         assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
-        verify(mockMoPubView, never()).adFailed(any(MoPubErrorCode.class));
+        verify(mockMoPubView, never()).onAdFailed(any(MoPubErrorCode.class));
     }
 
 
@@ -235,11 +291,11 @@ public class AdViewControllerTest {
         response = response.toBuilder().setRefreshTimeMilliseconds(null).build();
         subject.onAdLoadSuccess(response);
         ShadowLooper.pauseMainLooper();
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
 
         subject.scheduleRefreshTimerIfEnabled();
 
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
     }
 
     @Test
@@ -247,11 +303,11 @@ public class AdViewControllerTest {
         response = response.toBuilder().setRefreshTimeMilliseconds(0).build();
         subject.onAdLoadSuccess(response);
         ShadowLooper.pauseMainLooper();
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
 
         subject.scheduleRefreshTimerIfEnabled();
 
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
     }
 
     @Test
@@ -259,15 +315,15 @@ public class AdViewControllerTest {
         response = response.toBuilder().setRefreshTimeMilliseconds(30).build();
         subject.onAdLoadSuccess(response);
         ShadowLooper.pauseMainLooper();
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(2);
 
         subject.scheduleRefreshTimerIfEnabled();
 
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(2);
 
         subject.scheduleRefreshTimerIfEnabled();
 
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(2);
     }
 
     @Test
@@ -276,13 +332,13 @@ public class AdViewControllerTest {
         subject.onAdLoadSuccess(response);
 
         ShadowLooper.pauseMainLooper();
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(2);
 
         subject.setShouldAllowAutoRefresh(false);
 
         subject.scheduleRefreshTimerIfEnabled();
 
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
     }
 
     @Test
@@ -376,16 +432,16 @@ public class AdViewControllerTest {
 
         subject.loadAd();
         subject.setShouldAllowAutoRefresh(true);
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(2);
 
         subject.setShouldAllowAutoRefresh(false);
-        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(0);
+        assertThat(Robolectric.getForegroundThreadScheduler().size()).isEqualTo(1);
     }
 
     @Test
     public void trackImpression_shouldAddToRequestQueue() {
         subject.onAdLoadSuccess(response);
-        subject.trackImpression();
+        subject.onAdImpression();
 
         verify(mockRequestQueue).add(argThat(isUrl("impressionUrl1")));
         verify(mockRequestQueue).add(argThat(isUrl("impressionUrl2")));
@@ -393,7 +449,7 @@ public class AdViewControllerTest {
 
     @Test
     public void trackImpression_noAdResponse_shouldNotAddToQueue() {
-        subject.trackImpression();
+        subject.onAdImpression();
 
         verifyZeroInteractions(mockRequestQueue);
     }
@@ -405,7 +461,7 @@ public class AdViewControllerTest {
         subject.onAdLoadSuccess(response);
         subject.setAdUnitId(mAdUnitId);
 
-        subject.trackImpression();
+        subject.onAdImpression();
 
         verify(impressionListener).onImpression(response.getAdUnitId(), response.getImpressionData());
         verify(mockRequestQueue).add(argThat(isUrl("impressionUrl1")));
@@ -515,7 +571,7 @@ public class AdViewControllerTest {
         subject.loadFailUrl(MoPubErrorCode.INTERNAL_ERROR);
 
         verify(mockRequestQueue).add(argThat(isUrl("failUrl")));
-        verify(mockMoPubView, never()).adFailed(any(MoPubErrorCode.class));
+        verify(mockMoPubView, never()).onAdFailed(any(MoPubErrorCode.class));
     }
 
     @Test
@@ -530,7 +586,7 @@ public class AdViewControllerTest {
         response.toBuilder().setFailoverUrl(null).build();
         subject.loadFailUrl(MoPubErrorCode.INTERNAL_ERROR);
 
-        verify(mockMoPubView).adFailed(eq(MoPubErrorCode.NO_FILL));
+        verify(mockMoPubView).onAdLoadFailed(eq(MoPubErrorCode.NO_FILL));
         verifyZeroInteractions(mockRequestQueue);
     }
 
@@ -549,9 +605,9 @@ public class AdViewControllerTest {
         ThreadUtils.pause(100);
         ShadowLooper.runUiThreadTasks();
 
-        verify(mockMoPubView).removeAllViews();
+        verify((MoPubView) mockMoPubView).removeAllViews();
         ArgumentCaptor<FrameLayout.LayoutParams> layoutParamsCaptor = ArgumentCaptor.forClass(FrameLayout.LayoutParams.class);
-        verify(mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
+        verify((MoPubView) mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
         FrameLayout.LayoutParams layoutParams = layoutParamsCaptor.getValue();
 
         assertThat(layoutParams.width).isEqualTo(320);
@@ -575,8 +631,8 @@ public class AdViewControllerTest {
         ThreadUtils.pause(10);
         ShadowLooper.runUiThreadTasks();
 
-        verify(mockMoPubView, never()).removeAllViews();
-        verify(mockMoPubView, never()).addView(any(View.class), any(FrameLayout.LayoutParams.class));
+        verify((MoPubView) mockMoPubView, never()).removeAllViews();
+        verify((MoPubView) mockMoPubView, never()).addView(any(View.class), any(FrameLayout.LayoutParams.class));
     }
 
     @Test
@@ -587,9 +643,9 @@ public class AdViewControllerTest {
 
         subject.setAdContentView(view);
 
-        verify(mockMoPubView).removeAllViews();
+        verify((MoPubView) mockMoPubView).removeAllViews();
         ArgumentCaptor<FrameLayout.LayoutParams> layoutParamsCaptor = ArgumentCaptor.forClass(FrameLayout.LayoutParams.class);
-        verify(mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
+        verify((MoPubView) mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
         FrameLayout.LayoutParams layoutParams = layoutParamsCaptor.getValue();
 
         assertThat(layoutParams.width).isEqualTo(320);
@@ -606,9 +662,9 @@ public class AdViewControllerTest {
 
         subject.setAdContentView(view);
 
-        verify(mockMoPubView).removeAllViews();
+        verify((MoPubView) mockMoPubView).removeAllViews();
         ArgumentCaptor<FrameLayout.LayoutParams> layoutParamsCaptor = ArgumentCaptor.forClass(FrameLayout.LayoutParams.class);
-        verify(mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
+        verify((MoPubView) mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
         FrameLayout.LayoutParams layoutParams = layoutParamsCaptor.getValue();
 
         assertThat(layoutParams.width).isEqualTo(FrameLayout.LayoutParams.WRAP_CONTENT);
@@ -623,9 +679,9 @@ public class AdViewControllerTest {
 
         subject.setAdContentView(view);
 
-        verify(mockMoPubView).removeAllViews();
+        verify((MoPubView) mockMoPubView).removeAllViews();
         ArgumentCaptor<FrameLayout.LayoutParams> layoutParamsCaptor = ArgumentCaptor.forClass(FrameLayout.LayoutParams.class);
-        verify(mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
+        verify((MoPubView) mockMoPubView).addView(eq(view), layoutParamsCaptor.capture());
         FrameLayout.LayoutParams layoutParams = layoutParamsCaptor.getValue();
 
         assertThat(layoutParams.width).isEqualTo(FrameLayout.LayoutParams.WRAP_CONTENT);
@@ -693,7 +749,7 @@ public class AdViewControllerTest {
         subject.setAdUnitId("abc123");
         subject.onAdLoadError(expectedInternalError);
 
-        verify(mockMoPubView).adFailed(MoPubErrorCode.WARMUP);
+        verify((MoPubView) mockMoPubView).onAdLoadFailed(MoPubErrorCode.WARMUP);
     }
 
     @Test
@@ -703,7 +759,7 @@ public class AdViewControllerTest {
 
         // DeviceUtils#isNetworkAvailable conveniently returns false due to
         // not having the network permission.
-        verify(mockMoPubView).adFailed(MoPubErrorCode.NO_CONNECTION);
+        verify(mockMoPubView).onAdLoadFailed(MoPubErrorCode.NO_CONNECTION);
     }
 
     @Test
@@ -719,33 +775,66 @@ public class AdViewControllerTest {
 
             assertThat(subject.mBackoffPower).isEqualTo(oldBackoffPower + 1);
         }
-        verify(mockMoPubView, times(HTML_ERROR_CODES.length)).adFailed(MoPubErrorCode.SERVER_ERROR);
+        verify(mockMoPubView, times(HTML_ERROR_CODES.length)).onAdLoadFailed(MoPubErrorCode.SERVER_ERROR);
     }
 
     @Test
-    public void loadCustomEvent_shouldCallMoPubViewLoadCustomEvent() {
-        Map serverExtras = mock(Map.class);
-        String customEventClassName = "customEventClassName";
-        subject.loadCustomEvent(mockMoPubView, customEventClassName, serverExtras);
-
-        verify(mockMoPubView).loadCustomEvent(customEventClassName, serverExtras);
+    public void loadBaseAd_withNullMoPubAd_shouldCallLoadFailUrl() {
+        subject.setAdResponse(response);
+        subject.setMoPubAd(null);
+        AdViewController subjectSpy = spy(subject);
+        subjectSpy.loadBaseAd();
+        verify(subjectSpy, times(1)).loadFailUrl(MoPubErrorCode.INTERNAL_ERROR);
     }
 
     @Test
-    public void loadCustomEvent_withNullMoPubView_shouldNotCallMoPubViewLoadCustomEvent() {
-        Map serverExtras = mock(Map.class);
-        String customEventClassName = "customEventClassName";
-        subject.loadCustomEvent(null, customEventClassName, serverExtras);
-
-        verify(mockMoPubView, never()).loadCustomEvent(anyString(), any(Map.class));
+    public void loadBaseAd_withNullBaseAdClassName_shouldCallLoadFailUrl() {
+        response = response.toBuilder().setBaseAdClassName(null).build();
+        subject.setAdResponse(response);
+        AdViewController subjectSpy = spy(subject);
+        subjectSpy.loadBaseAd();
+        verify(subjectSpy, times(1)).loadFailUrl(MoPubErrorCode.ADAPTER_NOT_FOUND);
     }
 
     @Test
-    public void loadCustomEvent_withNullCustomEventClassName_shouldCallMoPubViewLoadCustomEvent() {
-        Map serverExtras = mock(Map.class);
-        subject.loadCustomEvent(mockMoPubView, null, serverExtras);
+    public void loadBaseAd_withEmptyBaseAdClassName_shouldCallLoadFailUrl() {
+        response = response.toBuilder().setBaseAdClassName("").build();
+        subject.setAdResponse(response);
+        AdViewController subjectSpy = spy(subject);
+        subjectSpy.loadBaseAd();
+        verify(subjectSpy, times(1)).loadFailUrl(MoPubErrorCode.ADAPTER_NOT_FOUND);
+    }
 
-        verify(mockMoPubView).loadCustomEvent(null, serverExtras);
+    @Test
+    public void loadBaseAd_withBannerAdFormat_shouldUseInlineAdAdapter_shouldUseBaseClassName_shouldCallAdapterLoad() {
+        when(mockMoPubView.getAdFormat()).thenReturn(AdFormat.BANNER);
+
+        final String baseClassName = "mopub_base_class_inline";
+        response = response.toBuilder().setBaseAdClassName(baseClassName).build();
+        subject.setAdResponse(response);
+        subject.loadBaseAd();
+
+        final AdAdapter adAdapter = subject.getAdAdapter();
+
+        assertThat(adAdapter instanceof InlineAdAdapter);
+        assertThat(TestBaseAdFactory.getLatestClassName()).isEqualTo(baseClassName);
+        assertThat(adAdapter).isNotNull();
+    }
+
+    @Test
+    public void loadBaseAd_withInterstitialFormat_shouldUseFullscreenAdAdapter_shouldUseBaseClassName_shouldCallAdapterLoad() {
+        when(mockMoPubView.getAdFormat()).thenReturn(AdFormat.INTERSTITIAL);
+
+        final String baseClassName = "mopub_base_class_fullscreen";
+        response = response.toBuilder().setBaseAdClassName(baseClassName).build();
+        subject.setAdResponse(response);
+        subject.loadBaseAd();
+
+        final AdAdapter adAdapter = subject.getAdAdapter();
+
+        assertThat(adAdapter instanceof FullscreenAdAdapter);
+        assertThat(TestBaseAdFactory.getLatestClassName()).isEqualTo(baseClassName);
+        assertThat(adAdapter).isNotNull();
     }
 
     @Test

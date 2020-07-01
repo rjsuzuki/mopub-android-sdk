@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -65,7 +65,8 @@ public class ConsentDialogControllerTest {
         mockRequestQueue = Mockito.mock(MoPubRequestQueueTest.TestMoPubRequestQueue.class);
         mockDialogListener = Mockito.mock(ConsentDialogListener.class);
         dialogResponse = new ConsentDialogResponse(HTML_TEXT);
-        personalInfoData = new PersonalInfoData(context, AD_UNIT_ID);
+        personalInfoData = new PersonalInfoData(context);
+        personalInfoData.setAdUnit(AD_UNIT_ID);
 
         PowerMockito.mockStatic(Networking.class);
         when(Networking.getRequestQueue(context)).thenReturn(mockRequestQueue);

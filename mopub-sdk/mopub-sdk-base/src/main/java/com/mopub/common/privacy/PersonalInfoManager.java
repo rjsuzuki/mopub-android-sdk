@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -9,9 +9,10 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.ClientMetadata;
 import com.mopub.common.Constants;
@@ -33,12 +34,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.CUSTOM;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.LOAD_ATTEMPTED;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.LOAD_FAILED;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.SYNC_ATTEMPTED;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.SYNC_COMPLETED;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.SYNC_FAILED;
-import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.CUSTOM;
 import static com.mopub.common.logging.MoPubLog.ConsentLogEvent.UPDATED;
 
 /**
@@ -83,7 +84,13 @@ public class PersonalInfoManager {
 
         mConsentDialogController = new ConsentDialogController(mAppContext);
 
-        mPersonalInfoData = new PersonalInfoData(mAppContext, adUnitId);
+        mPersonalInfoData = new PersonalInfoData(mAppContext);
+        if (!TextUtils.isEmpty(adUnitId) &&
+                !adUnitId.equals(mPersonalInfoData.getCachedLastAdUnitIdUsedForInit())) {
+            mPersonalInfoData.setAdUnit("");
+            mPersonalInfoData.setCachedLastAdUnitIdUsedForInit(adUnitId);
+            mPersonalInfoData.writeToDisk();
+        }
 
         mConversionTracker = new MoPubConversionTracker(mAppContext);
 
@@ -140,20 +147,16 @@ public class PersonalInfoManager {
      * @return True for yes, false for no.
      */
     public boolean shouldShowConsentDialog() {
-        if (gdprApplies() == null || !gdprApplies()) {
+        final Boolean gdprApplies = gdprApplies();
+        if (gdprApplies == null || !gdprApplies) {
             return false;
         }
 
-        if (ClientMetadata.getInstance(
-                mAppContext).getMoPubIdentifier().getAdvertisingInfo().isDoNotTrack()) {
-            return false;
-        }
-
-        // Check to see if the server said to reacquire consent and that the sdk had consent.
-        if (mPersonalInfoData.shouldReacquireConsent() && mPersonalInfoData.getConsentStatus().equals(
-                ConsentStatus.EXPLICIT_YES)) {
+        // Check to see if the server said to reacquire consent.
+        if (mPersonalInfoData.shouldReacquireConsent()) {
             return true;
         }
+
         return mPersonalInfoData.getConsentStatus().equals(ConsentStatus.UNKNOWN);
     }
 
@@ -448,7 +451,7 @@ public class PersonalInfoManager {
         mLastSyncRequestTimeUptimeMs = SystemClock.uptimeMillis();
         final SyncUrlGenerator syncUrlGenerator = new SyncUrlGenerator(mAppContext,
                 mSyncRequestConsentStatus.getValue());
-        syncUrlGenerator.withAdUnitId(mPersonalInfoData.getAdUnitId())
+        syncUrlGenerator.withAdUnitId(mPersonalInfoData.chooseAdUnit())
                 .withUdid(mPersonalInfoData.getUdid())
                 .withLastChangedMs(mPersonalInfoData.getLastChangedMs())
                 .withLastConsentStatus(mPersonalInfoData.getLastSuccessfullySyncedConsentStatus())
@@ -478,7 +481,7 @@ public class PersonalInfoManager {
      * @return ConsentData which is a snapshot of the underlying data store.
      */
     public ConsentData getConsentData() {
-        return new PersonalInfoData(mAppContext, mPersonalInfoData.getAdUnitId());
+        return new PersonalInfoData(mAppContext);
     }
 
     /**
@@ -506,7 +509,7 @@ public class PersonalInfoManager {
         Preconditions.checkNotNull(consentChangeReason);
 
         final ConsentStatus oldConsentStatus = mPersonalInfoData.getConsentStatus();
-        if (oldConsentStatus.equals(newConsentStatus)) {
+        if (!mPersonalInfoData.shouldReacquireConsent() && oldConsentStatus.equals(newConsentStatus)) {
             MoPubLog.log(CUSTOM, "Consent status is already " + oldConsentStatus +
                     ". Not doing a state transition.");
             return;
@@ -515,9 +518,9 @@ public class PersonalInfoManager {
         mPersonalInfoData.setLastChangedMs("" + Calendar.getInstance().getTimeInMillis());
         mPersonalInfoData.setConsentChangeReason(consentChangeReason);
         mPersonalInfoData.setConsentStatus(newConsentStatus);
-        if (ConsentStatus.POTENTIAL_WHITELIST.equals(newConsentStatus) ||
-                (!ConsentStatus.POTENTIAL_WHITELIST.equals(oldConsentStatus)) &&
-                        ConsentStatus.EXPLICIT_YES.equals(newConsentStatus)) {
+        // Update the versions when going to a POTENTIAL_WHITELIST state, an EXPLICIT_YES state if
+        // it wasn't coming from a POTENTIAL_WHITELIST state, and an EXPLICIT_NO state.
+        if (shouldSetConsentedVersions(oldConsentStatus, newConsentStatus)) {
             mPersonalInfoData.setConsentedPrivacyPolicyVersion(
                     mPersonalInfoData.getCurrentPrivacyPolicyVersion());
             mPersonalInfoData.setConsentedVendorListVersion(
@@ -527,7 +530,6 @@ public class PersonalInfoManager {
         }
 
         if (ConsentStatus.DNT.equals(newConsentStatus) ||
-                ConsentStatus.EXPLICIT_NO.equals(newConsentStatus) ||
                 ConsentStatus.UNKNOWN.equals(newConsentStatus)) {
             mPersonalInfoData.setConsentedPrivacyPolicyVersion(null);
             mPersonalInfoData.setConsentedVendorListVersion(null);
@@ -557,6 +559,30 @@ public class PersonalInfoManager {
 
         fireOnConsentStateChangeListeners(oldConsentStatus, newConsentStatus,
                 canCollectPersonalInformation);
+    }
+
+    /**
+     * Checks to see if the consented privacy policy version, vendor list version, and IAB format
+     * String should be updated.
+     *
+     * @param oldConsentStatus The old consent status.
+     * @param newConsentStatus The new consent status.
+     * @return True if the versions should be updated.
+     */
+    private static boolean shouldSetConsentedVersions(@Nullable final ConsentStatus oldConsentStatus,
+            @Nullable final ConsentStatus newConsentStatus) {
+        if (ConsentStatus.EXPLICIT_NO.equals(newConsentStatus)) {
+            return true;
+        }
+        if (ConsentStatus.POTENTIAL_WHITELIST.equals(newConsentStatus)) {
+            return true;
+        }
+        // True if going to EXPLICIT_YES, but only if not coming from POTENTIAL_WHITELIST
+        if (!ConsentStatus.POTENTIAL_WHITELIST.equals(oldConsentStatus) &&
+                ConsentStatus.EXPLICIT_YES.equals(newConsentStatus)) {
+            return true;
+        }
+        return false;
     }
 
     private void fireOnConsentStateChangeListeners(@NonNull final ConsentStatus oldConsentStatus,
@@ -622,6 +648,12 @@ public class PersonalInfoManager {
                 }
             }
 
+            final String cachedLastAdUnitIdUsedForInit =
+                    mPersonalInfoData.getCachedLastAdUnitIdUsedForInit();
+            if (!TextUtils.isEmpty(cachedLastAdUnitIdUsedForInit) &&
+                    mPersonalInfoData.getAdUnitId().isEmpty()) {
+                mPersonalInfoData.setAdUnit(cachedLastAdUnitIdUsedForInit);
+            }
             mPersonalInfoData.setLastSuccessfullySyncedConsentStatus(mSyncRequestConsentStatus);
             mPersonalInfoData.setWhitelisted(response.isWhitelisted());
             mPersonalInfoData.setCurrentVendorListVersion(response.getCurrentVendorListVersion());
@@ -746,6 +778,17 @@ public class PersonalInfoManager {
         @Override
         public void onForceGdprApplies() {
             forceGdprApplies();
+        }
+
+        @Override
+        public void onRequestSuccess(@Nullable final String adUnitId) {
+            // Cache the ad unit if the ad request succeeded
+            if (!TextUtils.isEmpty(mPersonalInfoData.getAdUnitId()) ||
+                    TextUtils.isEmpty(adUnitId)) {
+                return;
+            }
+            mPersonalInfoData.setAdUnit(adUnitId);
+            mPersonalInfoData.writeToDisk();
         }
     }
 

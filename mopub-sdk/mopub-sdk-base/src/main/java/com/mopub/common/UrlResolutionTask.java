@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -6,8 +6,8 @@ package com.mopub.common;
 
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.util.AsyncTasks;
@@ -100,13 +100,13 @@ public class UrlResolutionTask extends AsyncTask<String, Void, String> {
             return resolveRedirectLocation(urlString, httpUrlConnection);
         } finally {
             if (httpUrlConnection != null) {
-                final InputStream is = httpUrlConnection.getInputStream();
-                if (is != null) {
-                    try {
+                try {
+                    final InputStream is = httpUrlConnection.getInputStream();
+                    if (is != null) {
                         is.close();
-                    } catch (IOException e) {
-                        MoPubLog.log(CUSTOM, "IOException when closing httpUrlConnection. Ignoring.");
                     }
+                } catch (IOException e) {
+                    MoPubLog.log(CUSTOM, "IOException when closing httpUrlConnection. Ignoring.");
                 }
                 httpUrlConnection.disconnect();
             }

@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -6,8 +6,8 @@ package com.mopub.common;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.util.Json;
@@ -45,7 +45,7 @@ public abstract class BaseAdapterConfiguration implements AdapterConfiguration {
         final String adapterConfigurationClassName = getClass().getName();
 
         MoPubLog.log(CUSTOM, String.format(Locale.US,
-                "Updating init settings for custom event %s with params %s",
+                "Updating init settings for base ad %s with params %s",
                 adapterConfigurationClassName, serverExtrasJsonString));
 
         sharedPreferences
@@ -60,8 +60,6 @@ public abstract class BaseAdapterConfiguration implements AdapterConfiguration {
         final SharedPreferences sharedPreferences = SharedPreferencesHelper.getSharedPreferences(
                 context, CUSTOM_EVENT_PREF_NAME);
         final Map<String, ?> networkInitSettings = sharedPreferences.getAll();
-        MoPubLog.log(CUSTOM, String.format(Locale.US, "fetched init settings for %s networks: %s",
-                networkInitSettings.size(), networkInitSettings.keySet()));
 
         final String adapterConfigurationClassName = getClass().getName();
         final String networkInitParamsJsonString =

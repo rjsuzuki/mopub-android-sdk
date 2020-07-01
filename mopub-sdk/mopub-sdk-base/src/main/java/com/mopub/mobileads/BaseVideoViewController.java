@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -9,12 +9,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.RelativeLayout;
-import android.widget.VideoView;
 
 import com.mopub.common.IntentActions;
 import com.mopub.common.Preconditions;
@@ -50,13 +49,13 @@ public abstract class BaseVideoViewController {
 
      protected void onCreate() {
         final RelativeLayout.LayoutParams adViewLayout = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.FILL_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+                RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
         adViewLayout.addRule(RelativeLayout.CENTER_IN_PARENT);
         mLayout.addView(getVideoView(), 0, adViewLayout);
         mBaseVideoViewControllerListener.onSetContentView(mLayout);
     }
 
-    protected abstract VideoView getVideoView();
+    protected abstract View getVideoView();
     protected abstract void onPause();
     protected abstract void onResume();
     protected abstract void onDestroy();
@@ -87,7 +86,7 @@ public abstract class BaseVideoViewController {
 
     protected void videoError(boolean shouldFinish) {
         MoPubLog.log(CUSTOM, "Video cannot be played.");
-        broadcastAction(IntentActions.ACTION_INTERSTITIAL_FAIL);
+        broadcastAction(IntentActions.ACTION_FULLSCREEN_FAIL);
         if (shouldFinish) {
            mBaseVideoViewControllerListener.onFinish();
         }

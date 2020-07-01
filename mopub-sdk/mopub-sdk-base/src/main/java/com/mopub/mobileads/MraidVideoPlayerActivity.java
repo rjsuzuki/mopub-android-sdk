@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -10,19 +10,24 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
+import android.view.View;
+
+import com.mopub.common.CreativeOrientation;
 import com.mopub.common.IntentActions;
 import com.mopub.common.logging.MoPubLog;
+import com.mopub.common.util.DeviceUtils;
 import com.mopub.common.util.Intents;
 import com.mopub.common.util.Reflection;
 import com.mopub.mraid.MraidVideoViewController;
 
+import java.io.Serializable;
+
 import static com.mopub.common.DataKeys.BROADCAST_IDENTIFIER_KEY;
+import static com.mopub.common.DataKeys.CREATIVE_ORIENTATION_KEY;
 import static com.mopub.common.logging.MoPubLog.SdkLogEvent.CUSTOM;
 import static com.mopub.mobileads.BaseBroadcastReceiver.broadcastAction;
 
@@ -37,9 +42,6 @@ public class MraidVideoPlayerActivity extends BaseVideoPlayerActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-
         mBroadcastIdentifier = getBroadcastIdentifierFromIntent(getIntent());
 
         try {
@@ -48,10 +50,18 @@ public class MraidVideoPlayerActivity extends BaseVideoPlayerActivity implements
             // This can happen if the activity was started without valid intent extras. We leave
             // mBaseVideoController set to null, and finish the activity immediately.
 
-            broadcastAction(this, mBroadcastIdentifier, IntentActions.ACTION_INTERSTITIAL_FAIL);
+            broadcastAction(this, mBroadcastIdentifier, IntentActions.ACTION_FULLSCREEN_FAIL);
             finish();
             return;
         }
+
+        final Serializable orientationExtra = getIntent().getSerializableExtra(
+                CREATIVE_ORIENTATION_KEY);
+        CreativeOrientation requestedOrientation = CreativeOrientation.DEVICE;
+        if (orientationExtra instanceof CreativeOrientation) {
+            requestedOrientation = (CreativeOrientation) orientationExtra;
+        }
+        DeviceUtils.lockOrientation(this, requestedOrientation);
 
         mBaseVideoController.onCreate();
     }
@@ -181,12 +191,14 @@ public class MraidVideoPlayerActivity extends BaseVideoPlayerActivity implements
         return intent.getLongExtra(BROADCAST_IDENTIFIER_KEY, -1);
     }
 
-    @Deprecated // for testing
+    @Deprecated
+    @VisibleForTesting
     BaseVideoViewController getBaseVideoViewController() {
         return mBaseVideoController;
     }
 
-    @Deprecated // for testing
+    @Deprecated
+    @VisibleForTesting
     void setBaseVideoViewController(final BaseVideoViewController baseVideoViewController) {
         mBaseVideoController = baseVideoViewController;
     }

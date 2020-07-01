@@ -1,22 +1,25 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.common;
 
 import android.content.Context;
+import android.graphics.Point;
 import android.location.Location;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import android.view.WindowInsets;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.privacy.ConsentData;
 import com.mopub.common.privacy.PersonalInfoManager;
 import com.mopub.common.util.DateAndTime;
+import com.mopub.common.util.ResponseHeader;
 import com.mopub.network.RequestRateTracker;
 
 import static com.mopub.common.ClientMetadata.MoPubNetworkType;
-import com.mopub.common.util.ResponseHeader;
 
 public abstract class AdUrlGenerator extends BaseUrlGenerator {
 
@@ -129,10 +132,10 @@ public abstract class AdUrlGenerator extends BaseUrlGenerator {
     protected String mAdUnitId;
     protected String mKeywords;
     protected String mUserDataKeywords;
-    protected Location mLocation;
+    protected Point mRequestedAdSize;
+    protected WindowInsets mWindowInsets;
     @Nullable private final PersonalInfoManager mPersonalInfoManager;
     @Nullable private final ConsentData mConsentData;
-    protected Boolean mForceGdprApplies;
 
     public AdUrlGenerator(Context context) {
         mContext = context;
@@ -159,8 +162,13 @@ public abstract class AdUrlGenerator extends BaseUrlGenerator {
         return this;
     }
 
-    public AdUrlGenerator withLocation(Location location) {
-        mLocation = location;
+    public AdUrlGenerator withRequestedAdSize(final Point adSize) {
+        mRequestedAdSize = adSize;
+        return this;
+    }
+
+    public AdUrlGenerator withWindowInsets(final WindowInsets windowInsets) {
+        mWindowInsets = windowInsets;
         return this;
     }
 
@@ -183,30 +191,19 @@ public abstract class AdUrlGenerator extends BaseUrlGenerator {
         addParam(USER_DATA_KEYWORDS_KEY, userDataKeywords);
     }
 
-    protected void setLocation(@Nullable Location location) {
+    protected void setLocation() {
         if (!MoPub.canCollectPersonalInformation()) {
             return;
         }
 
-        Location bestLocation = location;
-        Location locationFromLocationService = LocationService.getLastKnownLocation(mContext,
-                MoPub.getLocationPrecision(),
-                MoPub.getLocationAwareness());
+        final Location location = LocationService.getLastKnownLocation(mContext);
 
-        if (locationFromLocationService != null &&
-                (location == null || locationFromLocationService.getTime() >= location.getTime())) {
-            bestLocation = locationFromLocationService;
-        }
-
-        if (bestLocation != null) {
-            addParam(LAT_LONG_KEY, bestLocation.getLatitude() + "," + bestLocation.getLongitude());
-            addParam(LAT_LONG_ACCURACY_KEY, String.valueOf((int) bestLocation.getAccuracy()));
+        if (location != null) {
+            addParam(LAT_LONG_KEY, location.getLatitude() + "," + location.getLongitude());
+            addParam(LAT_LONG_ACCURACY_KEY, String.valueOf((int) location.getAccuracy()));
             addParam(LAT_LONG_FRESHNESS_KEY,
-                    String.valueOf(calculateLocationStalenessInMilliseconds(bestLocation)));
-
-            if (bestLocation == locationFromLocationService) {
-                addParam(LAT_LONG_FROM_SDK_KEY, "1");
-            }
+                    String.valueOf(calculateLocationStalenessInMilliseconds(location)));
+            addParam(LAT_LONG_FROM_SDK_KEY, "1");
         }
     }
 
@@ -308,6 +305,8 @@ public abstract class AdUrlGenerator extends BaseUrlGenerator {
         setAdUnitId(mAdUnitId);
 
         setSdkVersion(clientMetadata.getSdkVersion());
+        appendAppEngineInfo();
+        appendWrapperVersion();
         setDeviceInfo(clientMetadata.getDeviceManufacturer(),
                 clientMetadata.getDeviceModel(),
                 clientMetadata.getDeviceProduct());
@@ -317,13 +316,13 @@ public abstract class AdUrlGenerator extends BaseUrlGenerator {
 
         if (MoPub.canCollectPersonalInformation()) {
             setUserDataKeywords(mUserDataKeywords);
-            setLocation(mLocation);
+            setLocation();
         }
 
         setTimezone(DateAndTime.getTimeZoneOffsetString());
 
         setOrientation(clientMetadata.getOrientationString());
-        setDeviceDimensions(clientMetadata.getDeviceDimensions());
+        setDeviceDimensions(clientMetadata.getDeviceDimensions(), mRequestedAdSize, mWindowInsets);
         setDensity(clientMetadata.getDensity());
 
         final String networkOperator = clientMetadata.getNetworkOperatorForUrl();

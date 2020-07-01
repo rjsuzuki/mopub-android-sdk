@@ -1,12 +1,12 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.nativeads;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -174,7 +174,7 @@ public class NativeAd {
     // Lifecycle Handlers
 
     /**
-     * Prepares the {@link NativeAd} to be seen on screen. You should call this method after calling
+     * Prepares the {@link NativeAd} to be seen on screen. You should call this method before calling
      * {@link #renderAdView(View)} with the same {@link View} and before the ad is shown on-screen.
      * This method is commonly used to initialize impression tracking and other state associated
      * with the {@link View}.

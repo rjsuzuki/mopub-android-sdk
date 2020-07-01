@@ -1,3 +1,90 @@
+## Version 5.13.0 (June 15, 2020)
+- **Features**
+  - Remove Moat and IAS measurement SDKs.
+  - Consolidate banners, interstitials, and rewarded ads into one container. Third party network adapters for these formats should now extend `BaseAd`.
+  - Consolidate the `mopub-sdk-interstitial` and `mopub-sdk-rewarded-video` modules into `mopub-sdk-fullscreen`.
+  - Upgrade to use the Androidx Media2 video player for VAST videos.
+
+- **Bug Fixes**
+  - Unify the design treatment of fullscreen close buttons. Add a skip button for video when the skip threshold has been met before it has completed.
+  - Fix the version name of the sample app on the Play Store.
+
+## Version 5.12.0 (April 6, 2020)
+- **Features**
+  - Add Mintegral as a supported network.
+  - Geographical location is set automatically by the SDK. Public methods to set location are marked deprecated.
+  - Add a new method `getAppVersion()` to the `ImpressionData` class.
+  - MRAID ads always show native close button.
+
+- **Bug Fixes**
+  - Fix multiple UI layout warnings in the sample application.
+  - Remove parameter android_perms_ext_storage from an ad request.
+
+## Version 5.11.1 (February 18, 2020)
+- **Bug Fixes**
+  - Addresses a crash for Android API versions 19-23
+
+## Version 5.11.0 (January 28, 2020)
+- **Features**
+  - Raise the minimum Android SDK to Android 4.4 (API level 19).
+  - Update GDPR logic to allow MoPub to reacquire consent for new vendors.
+  - Update our support for OpenRTB Native Ads to version 1.2 and add an optional `sponsored` text field for native ads.
+  - Upgrade ExoPlayer to 2.11.0.
+  - Add switch to use AndroidX MediaPlayer instead of the default Android MediaPlayer for VAST Video. This adds the dependencies `androidx.media2:media2-session`, `androidx.media2:media2-widget`, and `androidx.media2:media2-player`, all on version 1.0.1.
+  - Add dependency on `androidx.core:core-ktx` version 1.1.0.
+  - Add dependency on `com.google.code.gson:gson` version 2.8.6.
+  - Add the ability to test manual native ads in the sample app.
+
+- **Bug Fixes**
+  - Fix an issue with rate limiting for rewarded ads.
+  - Fix a compliance issue with Facebook Audience Network native for the sample app.
+  - Increase consistency for immersive mode across VAST, MRAID, and HTML ads.
+
+## Version 5.10.0 (October 30, 2019)
+- **Features**
+  - Activities no longer need to be declared when using maven or `.aar`s.
+  - Upgrade Android Gradle plugin dependency to 3.5.1.
+  - Add the `androidx.appcompat:appcompat` dependency to support default themes in MoPub activities.
+  - Add support for the Verizon native ad renderer.
+  - Sample app now has an example manual native integration.
+
+- **Bug Fixes**
+  - VAST skip trackers are no longer always fired when the video is closed. They only fire if the video is closed when the video still has time remaining.
+  - Adding new ad units to the sample app is now immediate.
+
+## Version 5.9.1 (September 23, 2019)
+- **Bug Fixes**
+  - Now sends ad width in pixels instead of dips when setting a `MoPubAdSize`.
+
+## Version 5.9.0 (September 16, 2019)
+- **Features**
+  - Certified against Android 10.
+  - Removed support for `tel`, `sms`, `createCalendarEvent`, and `storePicture` functions for MRAID ads.
+  - Upgraded ExoPlayer to 2.10.3.
+  - Migrated to AndroidX. See [https://developer.android.com/jetpack/androidx/migrate] for more information.
+  - Upgraded `targetSdkVersion` and `compileSdkVersion` to 29.
+
+- **Bug Fixes**
+  - SDK location is now prioritized over publisher-specified location.
+  - Fixed a rare crash when layout params are available but the parent view is null.
+
+## Version 5.8.0 (July 22, 2019)
+- **Features**
+  - Height-based constants have been added to banners and medium rectangles. Call `MoPubView#setAdSize(MoPubAdSize)` before loading an ad or pass in the ad size to `MoPubView#loadAd(MoPubAdSize)` to request an ad of a particular height. See [https://developers.mopub.com/publishers/android/banner/] for more information.
+  - Deprecated skyscraper and leaderboard ad formats. Leaderboards can now be made by setting the `MoPubView` ad size to `MoPubAdSize.HEIGHT_90`.
+  - Renamed the MRect ad format as Medium Rectangle.
+  - Upgraded Robolectric dependency to 4.3.
+  - Updated the icon for the sample app.
+  - Sample app now has visible callbacks.
+  - VAST Videos now play with `device` orientation by default.
+  - The background for interstitials is now black. The background for banners and medium rectangles remain transparent.
+
+- **Bug Fixes**
+  - Improved the look and feel of the sample app on tablets.
+  - Fixed warnings in the `build.gradle` file.
+  - Improved test run speed.
+  - Improved the VAST video selection logic.
+
 ## Version 5.7.1 (June 3, 2019)
 - **Bug Fixes**
   - Handle `WebViewClient#onRenderProcessGone` for API 26+ devices so WebView crashes do not take the entire process with it. This only affects MoPub WebViews, and all WebViews in the application must handle this call in order for the process to not be killed.

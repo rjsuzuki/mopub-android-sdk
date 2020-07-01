@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -8,9 +8,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.mopub.common.DataKeys;
 import com.mopub.common.Preconditions;
@@ -35,8 +35,9 @@ public abstract class BaseBroadcastReceiver extends BroadcastReceiver {
     @NonNull
     public abstract IntentFilter getIntentFilter();
 
-    public void register(final @NonNull BroadcastReceiver broadcastReceiver, Context context) {
-        mContext = context;
+    public void register(@NonNull final BroadcastReceiver broadcastReceiver,
+                         @NonNull final Context context) {
+        mContext = context.getApplicationContext();
         LocalBroadcastManager.getInstance(mContext).registerReceiver(broadcastReceiver,
                 getIntentFilter());
     }

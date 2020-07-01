@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
@@ -6,10 +6,13 @@ package com.mopub.common;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.logging.MoPubLog;
 import com.mopub.common.privacy.PersonalInfoManager;
@@ -22,12 +25,12 @@ import java.util.List;
 
 import static com.mopub.common.ExternalViewabilitySessionManager.ViewabilityVendor;
 import static com.mopub.common.logging.MoPubLog.SdkLogEvent.CUSTOM;
-import static com.mopub.common.logging.MoPubLog.SdkLogEvent.ERROR;
-import static com.mopub.common.logging.MoPubLog.SdkLogEvent.INIT_STARTED;
+import static com.mopub.common.logging.MoPubLog.SdkLogEvent.ERROR_WITH_THROWABLE;
 import static com.mopub.common.logging.MoPubLog.SdkLogEvent.INIT_FINISHED;
+import static com.mopub.common.logging.MoPubLog.SdkLogEvent.INIT_STARTED;
 
 public class MoPub {
-    public static final String SDK_VERSION = "5.7.1";
+    public static final String SDK_VERSION = "5.13.0";
 
     public enum LocationAwareness { NORMAL, TRUNCATED, DISABLED }
 
@@ -67,12 +70,6 @@ public class MoPub {
     private static final String MOPUB_REWARDED_VIDEO_MANAGER =
             "com.mopub.mobileads.MoPubRewardedVideoManager";
 
-    private static final int DEFAULT_LOCATION_PRECISION = 6;
-    private static final long DEFAULT_LOCATION_REFRESH_TIME_MILLIS = 60 * 1000;
-
-    @NonNull private static volatile LocationAwareness sLocationAwareness = LocationAwareness.NORMAL;
-    private static volatile int sLocationPrecision = DEFAULT_LOCATION_PRECISION;
-    private static volatile long sMinimumLocationRefreshTimeMillis = DEFAULT_LOCATION_REFRESH_TIME_MILLIS;
     @NonNull private static volatile BrowserAgent sBrowserAgent = BrowserAgent.IN_APP;
     private static volatile boolean sIsBrowserAgentOverriddenByClient = false;
     private static boolean sSearchedForUpdateActivityMethod = false;
@@ -84,19 +81,18 @@ public class MoPub {
 
     @NonNull
     public static LocationAwareness getLocationAwareness() {
-        Preconditions.checkNotNull(sLocationAwareness);
 
-        return sLocationAwareness;
+        return LocationService.getInstance().getLocationAwareness();
     }
 
     public static void setLocationAwareness(@NonNull final LocationAwareness locationAwareness) {
         Preconditions.checkNotNull(locationAwareness);
 
-        sLocationAwareness = locationAwareness;
+        LocationService.getInstance().setLocationAwareness(locationAwareness);
     }
 
     public static int getLocationPrecision() {
-        return sLocationPrecision;
+        return LocationService.getInstance().getLocationPrecision();
     }
 
     /**
@@ -104,16 +100,16 @@ public class MoPub {
      * to {@link com.mopub.common.MoPub.LocationAwareness#TRUNCATED}.
      */
     public static void setLocationPrecision(int precision) {
-        sLocationPrecision = Math.min(Math.max(0, precision), DEFAULT_LOCATION_PRECISION);
+        LocationService.getInstance().setLocationPrecision(precision);
     }
 
     public static void setMinimumLocationRefreshTimeMillis(
             final long minimumLocationRefreshTimeMillis) {
-        sMinimumLocationRefreshTimeMillis = minimumLocationRefreshTimeMillis;
+        LocationService.getInstance().setMinimumLocationRefreshTimeMillis(minimumLocationRefreshTimeMillis);
     }
 
     public static long getMinimumLocationRefreshTimeMillis() {
-        return sMinimumLocationRefreshTimeMillis;
+        return LocationService.getInstance().getMinimumLocationRefreshTimeMillis();
     }
 
     public static void setBrowserAgent(@NonNull final BrowserAgent browserAgent) {
@@ -142,8 +138,32 @@ public class MoPub {
     }
 
     /**
+     * Set optional application engine information, for example {'unity', "123"}
+     *
+     * @param engineInfo {@link com.mopub.common.AppEngineInfo}
+     */
+    public static void setEngineInformation(@NonNull final AppEngineInfo engineInfo) {
+        Preconditions.checkNotNull(engineInfo);
+
+        if (!TextUtils.isEmpty(engineInfo.mName) && !TextUtils.isEmpty(engineInfo.mVersion)) {
+            BaseUrlGenerator.setAppEngineInfo(engineInfo);
+        }
+    }
+
+    /**
+     * Sets the wrapper version. This is not meant for publisher use.
+     *
+     * @param wrapperVersion The wrapper version number.
+     */
+    public static void setWrapperVersion(@NonNull final String wrapperVersion) {
+        Preconditions.checkNotNull(wrapperVersion);
+
+        BaseUrlGenerator.setWrapperVersion(wrapperVersion);
+    }
+
+    /**
      * Initializes the MoPub SDK. Call this before making any rewarded ads or advanced bidding
-     * requests. This will do the rewarded video custom event initialization any number of times,
+     * requests. This will do the rewarded video base ad initialization any number of times,
      * but the SDK itself can only be initialized once, and the rewarded ads module can only be
      * initialized once.
      *
@@ -162,6 +182,11 @@ public class MoPub {
 
         MoPubLog.log(INIT_STARTED);
         MoPubLog.log(CUSTOM, "SDK initialize has been called with ad unit: " + sdkConfiguration.getAdUnitId());
+        final ApplicationInfo appInfo = context.getApplicationInfo();
+        if (appInfo != null) {
+            MoPubLog.log(CUSTOM, context.getPackageName() +
+                    " was built with target SDK version of " + appInfo.targetSdkVersion);
+        }
 
         if (context instanceof Activity) {
             final Activity activity = (Activity) context;
@@ -314,10 +339,10 @@ public class MoPub {
         MoPubLifecycleManager.getInstance(activity).onBackPressed(activity);
     }
 
+    @Deprecated
     public static void disableViewability(@NonNull final ViewabilityVendor vendor) {
         Preconditions.checkNotNull(vendor);
 
-        vendor.disable();
     }
 
     @Nullable
@@ -344,7 +369,7 @@ public class MoPub {
         } catch (NoSuchMethodException e) {
             MoPubLog.log(CUSTOM, "initializeRewardedVideo was called without the rewarded video module");
         } catch (Exception e) {
-            MoPubLog.log(ERROR, "Error while initializing rewarded video", e);
+            MoPubLog.log(ERROR_WITH_THROWABLE, "Error while initializing rewarded video", e);
         }
     }
 
@@ -400,18 +425,18 @@ public class MoPub {
             try {
                 sUpdateActivityMethod.invoke(null, activity);
             } catch (IllegalAccessException e) {
-                MoPubLog.log(ERROR, "Error while attempting to access the update activity method - this " +
-                        "should not have happened", e);
+                MoPubLog.log(ERROR_WITH_THROWABLE, "Error while attempting to access the update " +
+                        "activity method - this should not have happened", e);
             } catch (InvocationTargetException e) {
-                MoPubLog.log(ERROR, "Error while attempting to access the update activity method - this " +
-                        "should not have happened", e);
+                MoPubLog.log(ERROR_WITH_THROWABLE, "Error while attempting to access the update " +
+                        "activity method - this should not have happened", e);
             }
         }
     }
 
     @Deprecated
     @VisibleForTesting
-    static void clearAdvancedBidders() {
+    static void resetMoPub() {
         sAdapterConfigurationManager = null;
         sPersonalInfoManager = null;
         sSdkInitialized = false;

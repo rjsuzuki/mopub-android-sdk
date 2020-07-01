@@ -1,10 +1,10 @@
-// Copyright 2018-2019 Twitter, Inc.
+// Copyright 2018-2020 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
 // http://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.common;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 import com.mopub.common.test.support.SdkTestRunner;
 
@@ -187,6 +187,16 @@ public class UrlResolutionTaskTest {
         MoPub.setBrowserAgent(MoPub.BrowserAgent.NATIVE);
         final String mopubNativeBrowserUrl = "mopubnativebrowser://navigate?url=https%3A%2F%2Fwww.twitter.com";
         assertThat(subject.doInBackground(mopubNativeBrowserUrl)).isEqualTo(mopubNativeBrowserUrl);
+    }
+
+    @Test
+    public void doInBackground_withNullUrl_shouldReturnNull() {
+        assertThat(subject.doInBackground(new String[] {null})).isEqualTo(null);
+    }
+
+    @Test
+    public void doInBackground_withNoUrls_shouldReturnNull() {
+        assertThat(subject.doInBackground()).isEqualTo(null);
     }
 
     private void setupMockHttpUrlConnection(final int responseCode,
