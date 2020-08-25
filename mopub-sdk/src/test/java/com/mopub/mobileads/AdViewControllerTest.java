@@ -28,6 +28,7 @@ import com.mopub.common.util.test.support.TestMethodBuilderFactory;
 import com.mopub.mobileads.test.support.MoPubShadowConnectivityManager;
 import com.mopub.mobileads.test.support.MoPubShadowTelephonyManager;
 import com.mopub.mobileads.test.support.TestBaseAdFactory;
+import com.mopub.mobileads.test.support.TestFullscreenAdAdapterFactory;
 import com.mopub.mobileads.test.support.ThreadUtils;
 import com.mopub.network.AdLoader;
 import com.mopub.network.AdResponse;
@@ -57,10 +58,12 @@ import org.robolectric.shadows.ShadowLooper;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static com.mopub.common.VolleyRequestMatcher.isUrl;
 import static org.fest.assertions.api.Assertions.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;

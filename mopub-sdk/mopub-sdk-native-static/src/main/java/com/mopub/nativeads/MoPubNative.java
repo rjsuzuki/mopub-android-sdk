@@ -5,10 +5,9 @@
 package com.mopub.nativeads;
 
 import android.content.Context;
-import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import android.text.TextUtils;
 
 import com.mopub.common.AdFormat;
 import com.mopub.common.Constants;
