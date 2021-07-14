@@ -1,6 +1,6 @@
-// Copyright 2018-2020 Twitter, Inc.
+// Copyright 2018-2021 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
-// http://www.mopub.com/legal/sdk-license-agreement/
+// https://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.network;
 
@@ -58,7 +58,6 @@ import com.mopub.common.AdFormat;
 import com.mopub.common.AdType;
 import com.mopub.common.Constants;
 import com.mopub.common.DataKeys;
-import com.mopub.common.MoPub;
 import com.mopub.common.ViewabilityManager;
 import com.mopub.common.ViewabilityVendor;
 import com.mopub.common.logging.MoPubLog;
@@ -67,9 +66,7 @@ import com.mopub.common.util.ResponseHeader;
 import com.mopub.mobileads.MoPubFullscreen;
 import com.mopub.mobileads.MoPubInline;
 import com.mopub.nativeads.MoPubCustomEventNative;
-import com.mopub.nativeads.MoPubCustomEventVideoNative;
 import com.mopub.network.MultiAdResponse.ServerOverrideListener;
-import com.mopub.volley.NetworkResponse;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -87,6 +84,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static com.mopub.common.BrowserAgentManager.BrowserAgent.IN_APP;
+import static com.mopub.common.BrowserAgentManager.BrowserAgent.NATIVE;
 import static org.fest.assertions.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -175,7 +174,7 @@ public class MultiAdResponseTest {
     @Test
     public void constructor_withSingleAdResponse_shouldSucceed() throws Exception {
         byte[] body = createResponseBody(FAIL_URL, singleAdResponse);
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         assertThat(subject.hasNext()).isTrue();
@@ -192,7 +191,7 @@ public class MultiAdResponseTest {
         jsonObject.put(ResponseHeader.FORCE_GDPR_APPLIES.getKey(), 1);
 
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         verify(mockOverrideListener).onForceGdprApplies();
@@ -212,7 +211,7 @@ public class MultiAdResponseTest {
         jsonObject.put(ResponseHeader.CONSENT_CHANGE_REASON.getKey(), "change_reason");
 
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         verify(mockOverrideListener).onForceExplicitNo("change_reason");
@@ -228,7 +227,7 @@ public class MultiAdResponseTest {
         jsonObject.put(ResponseHeader.CONSENT_CHANGE_REASON.getKey(), "change_reason");
 
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         verify(mockOverrideListener).onInvalidateConsent("change_reason");
@@ -244,7 +243,7 @@ public class MultiAdResponseTest {
         jsonObject.put(ResponseHeader.CONSENT_CHANGE_REASON.getKey(), "change_reason");
 
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         verify(mockOverrideListener).onReacquireConsent("change_reason");
@@ -258,7 +257,7 @@ public class MultiAdResponseTest {
         final JSONObject jsonObject = createJsonBody(FAIL_URL, singleAdResponse);
 
         final byte[] body = jsonObject.toString().getBytes();
-        final NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         verify(mockOverrideListener).onRequestSuccess(adUnitId);
@@ -266,7 +265,7 @@ public class MultiAdResponseTest {
 
     @Test(expected = JSONException.class)
     public void constructor_NonJsonBodyShouldThrowException() throws Exception {
-        NetworkResponse testResponse = new NetworkResponse("abc".getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(400, "abc".getBytes(), Collections.emptyMap());
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
     }
 
@@ -274,7 +273,7 @@ public class MultiAdResponseTest {
     public void constructor_withResponseClear_shouldThrowNoFill() throws JSONException {
         JSONObject jsonClear = createClearAdResponse();
         byte[] body = createResponseBody(FAIL_URL, jsonClear);
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -294,7 +293,7 @@ public class MultiAdResponseTest {
         JSONObject jsonClear = createClearAdResponse();
         jsonClear.getJSONObject(ResponseHeader.METADATA.getKey()).remove(ResponseHeader.REFRESH_TIME.getKey());
         byte[] body = createResponseBody(FAIL_URL, jsonClear);
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -313,7 +312,7 @@ public class MultiAdResponseTest {
     public void constructor_withResponseWarmup_shouldThrowException() throws JSONException {
         JSONObject jsonClear = createWarmupAdResponse();
         byte[] body = createResponseBody(FAIL_URL, jsonClear);
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -333,7 +332,8 @@ public class MultiAdResponseTest {
         JSONObject jsonClear = createWarmupAdResponse();
         JSONObject body = createJsonBody(FAIL_URL, jsonClear);
         addBackoffParameters(body, 50, "reason");
-        NetworkResponse testResponse = new NetworkResponse(body.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body.toString().getBytes(),
+                Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -351,7 +351,8 @@ public class MultiAdResponseTest {
         JSONObject jsonClear = createClearAdResponse();
         JSONObject body = createJsonBody(FAIL_URL, jsonClear);
         addBackoffParameters(body, 50, "reason");
-        NetworkResponse testResponse = new NetworkResponse(body.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body.toString().getBytes(),
+                Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -368,7 +369,8 @@ public class MultiAdResponseTest {
     public void constructor_withRateLimitSetValue_shouldSetBackoffTimeLimit() throws Exception {
         JSONObject jsonObject = createJsonBody(FAIL_URL, singleAdResponse);
         addBackoffParameters(jsonObject, 20, "reason");
-        NetworkResponse testResponse = new NetworkResponse(jsonObject.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, jsonObject.toString().getBytes(),
+                Collections.emptyMap());
 
         new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
@@ -384,7 +386,8 @@ public class MultiAdResponseTest {
 
         JSONObject jsonObject = createJsonBody(FAIL_URL, singleAdResponse);
         addBackoffParameters(jsonObject, 0, "reason");
-        NetworkResponse testResponse = new NetworkResponse(jsonObject.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, jsonObject.toString().getBytes(),
+                Collections.emptyMap());
 
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
@@ -395,7 +398,7 @@ public class MultiAdResponseTest {
     @Test
     public void constructor_withEmptyResponseArray_shouldThrowError_shouldUseDefaultTimeout() throws JSONException {
         byte[] body = createResponseBody(FAIL_URL, null);
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         try {
             new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
@@ -431,7 +434,7 @@ public class MultiAdResponseTest {
         JSONObject jsonObject = createJsonBody(FAIL_URL, singleAdResponse);
         jsonObject.getJSONArray(ResponseHeader.AD_RESPONSES.getKey()).put(secondResponse);
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
@@ -485,7 +488,7 @@ public class MultiAdResponseTest {
         JSONObject jsonObject = createJsonBody("", singleAdResponse);
         jsonObject.getJSONArray(ResponseHeader.AD_RESPONSES.getKey()).put(secondResponse);
         byte[] body = jsonObject.toString().getBytes();
-        NetworkResponse testResponse = new NetworkResponse(body);
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body, Collections.emptyMap());
 
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
@@ -527,7 +530,8 @@ public class MultiAdResponseTest {
 
         JSONObject body = createJsonBody(FAIL_URL, singleAdResponse);
         body.put(ResponseHeader.ENABLE_DEBUG_LOGGING.getKey(), 1); // true
-        NetworkResponse testResponse = new NetworkResponse(body.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body.toString().getBytes(),
+                Collections.emptyMap());
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         // Get log level and check that it is now MoPubLog.LogLevel.DEBUG
@@ -543,7 +547,8 @@ public class MultiAdResponseTest {
 
         JSONObject body = createJsonBody(FAIL_URL, singleAdResponse);
         body.put(ResponseHeader.ENABLE_DEBUG_LOGGING.getKey(), 0); // false
-        NetworkResponse testResponse = new NetworkResponse(body.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body.toString().getBytes(),
+                Collections.emptyMap());
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         // Get log level
@@ -558,7 +563,8 @@ public class MultiAdResponseTest {
         final MoPubLog.LogLevel beforeLogLevel = MoPubLog.getLogLevel();
 
         JSONObject body = createJsonBody(FAIL_URL, singleAdResponse);
-        NetworkResponse testResponse = new NetworkResponse(body.toString().getBytes());
+        MoPubNetworkResponse testResponse = new MoPubNetworkResponse(200, body.toString().getBytes(),
+                Collections.emptyMap());
         MultiAdResponse subject = new MultiAdResponse(activity, testResponse, AdFormat.BANNER, adUnitId);
 
         // The response shouldn't have the key in the headers
@@ -571,7 +577,8 @@ public class MultiAdResponseTest {
 
     @Test
     public void parseNetworkResponse_forBanner_withoutImpTrackingHeaders_shouldSucceed() throws MoPubNetworkError, JSONException {
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -613,7 +620,8 @@ public class MultiAdResponseTest {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.BANNER_IMPRESSION_MIN_VISIBLE_DIPS.getKey(), 1);
         metadata.put(ResponseHeader.BANNER_IMPRESSION_MIN_VISIBLE_MS.getKey(), 2);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -658,7 +666,8 @@ public class MultiAdResponseTest {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         JSONObject impJson = createImpressionData();
         metadata.put(ResponseHeader.IMPRESSION_DATA.getKey(), impJson);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -688,13 +697,16 @@ public class MultiAdResponseTest {
         assertThat(impressionData.getNetworkPlacementId()).isEqualTo(impJson.getString("network_placement_id"));
         assertThat(impressionData.getPublisherRevenue()).isEqualTo(impJson.getDouble("publisher_revenue"));
         assertThat(impressionData.getPrecision()).isEqualTo(impJson.getString("precision"));
+        assertThat(impressionData.getDemandPartnerData())
+                .isEqualsToByComparingFields(impJson.getJSONObject("demand_partner_data"));
     }
 
     @Test
     public void parseNetworkResponse_forBanner_withAdvancedBidding_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -734,7 +746,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_forNatvieStatic_withInvalidContent_throwsException() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(500, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -752,7 +765,8 @@ public class MultiAdResponseTest {
         metadata.put(ResponseHeader.IMPRESSION_MIN_VISIBLE_PERCENT.getKey(), 33);
         metadata.put(ResponseHeader.IMPRESSION_VISIBLE_MS.getKey(), 900);
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -791,7 +805,8 @@ public class MultiAdResponseTest {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -824,46 +839,6 @@ public class MultiAdResponseTest {
     }
 
     @Test
-    public void parseNetworkResponse_forNatvieVideo_shouldSucceed() throws MoPubNetworkError, JSONException {
-        singleAdResponse.put(ResponseHeader.CONTENT.getKey(), new JSONObject());
-        JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
-        metadata.put(ResponseHeader.IMPRESSION_MIN_VISIBLE_PERCENT.getKey(), 33);
-        metadata.put(ResponseHeader.IMPRESSION_VISIBLE_MS.getKey(), 900);
-        metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.VIDEO_NATIVE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
-
-        AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
-                networkResponse,
-                singleAdResponse,
-                adUnitId,
-                AdFormat.BANNER,
-                ADUNIT_FORMAT,
-                REQUEST_ID_VALUE);
-
-        assertThat(subject.getAdType()).isEqualTo(AdType.VIDEO_NATIVE);
-        assertThat(subject.getAdGroupId()).isEqualTo(AD_GROUP_ID);
-        assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getClickTrackingUrls().get(0)).isEqualTo(CLICKTRACKING_URL + "1");
-        assertThat(subject.getClickTrackingUrls().get(1)).isEqualTo(CLICKTRACKING_URL + "2");
-        assertThat(subject.getClickTrackingUrls().size()).isEqualTo(2);
-        assertThat(subject.getImpressionTrackingUrls()).isEqualTo(IMPTRACKER_URLS_LIST);
-        assertThat(subject.getBeforeLoadUrls().get(0)).isEqualTo(BEFORE_LOAD_URL + "1");
-        assertThat(subject.getBeforeLoadUrls().get(1)).isEqualTo(BEFORE_LOAD_URL + "2");
-        assertThat(subject.getBeforeLoadUrls().size()).isEqualTo(2);
-        assertThat(subject.getAfterLoadUrls()).isEqualTo(AFTER_LOAD_URLS_LIST);
-        assertThat(subject.getAfterLoadSuccessUrls()).isEqualTo(AFTER_LOAD_SUCCESS_URLS_LIST);
-        assertThat(subject.getAfterLoadFailUrls()).isEqualTo(AFTER_LOAD_FAIL_URLS_LIST);
-        assertThat(subject.getRefreshTimeMillis()).isEqualTo(REFRESH_TIME * 1000);
-        assertThat(subject.getStringBody()).isEqualTo("{}");
-        assertThat(subject.getCustomEventClassName()).isEqualTo(MoPubCustomEventVideoNative.class.getName());
-        final Map<String, String> serverExtras = subject.getServerExtras();
-        assertNotNull(serverExtras);
-        assertThat(serverExtras).isNotEmpty();
-        assertThat(serverExtras.get(DataKeys.IMPRESSION_MIN_VISIBLE_PERCENT)).isEqualTo("33");
-        assertThat(serverExtras.get(DataKeys.IMPRESSION_VISIBLE_MS)).isEqualTo("900");
-    }
-
-    @Test
     public void parseNetworkResponse_forEmptyJsonArray_shouldReturnEmptyLists() throws MoPubNetworkError, JSONException {
         singleAdResponse.put(ResponseHeader.CONTENT.getKey(), new JSONObject());
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
@@ -873,7 +848,8 @@ public class MultiAdResponseTest {
         metadata.put(ResponseHeader.AFTER_LOAD_URL.getKey(), new JSONArray());
         metadata.put(ResponseHeader.AFTER_LOAD_SUCCESS_URL.getKey(), new JSONArray());
         metadata.put(ResponseHeader.AFTER_LOAD_FAIL_URL.getKey(), new JSONArray());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -894,44 +870,6 @@ public class MultiAdResponseTest {
     }
 
     @Test
-    public void parseNetworkResponse_forNatvieVideo_withAdvancedBidding_shouldSucceed() throws MoPubNetworkError, JSONException {
-        singleAdResponse.put(ResponseHeader.CONTENT.getKey(), new JSONObject());
-        JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
-        metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
-        metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.VIDEO_NATIVE);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
-
-        AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
-                networkResponse,
-                singleAdResponse,
-                adUnitId,
-                AdFormat.BANNER,
-                ADUNIT_FORMAT,
-                REQUEST_ID_VALUE);
-
-        assertThat(subject.getAdType()).isEqualTo(AdType.VIDEO_NATIVE);
-        assertThat(subject.getAdGroupId()).isEqualTo(AD_GROUP_ID);
-        assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getClickTrackingUrls().get(0)).isEqualTo(CLICKTRACKING_URL + "1");
-        assertThat(subject.getClickTrackingUrls().get(1)).isEqualTo(CLICKTRACKING_URL + "2");
-        assertThat(subject.getClickTrackingUrls().size()).isEqualTo(2);
-        assertThat(subject.getImpressionTrackingUrls()).isEqualTo(IMPTRACKER_URLS_LIST);
-        assertThat(subject.getBeforeLoadUrls().get(0)).isEqualTo(BEFORE_LOAD_URL + "1");
-        assertThat(subject.getBeforeLoadUrls().get(1)).isEqualTo(BEFORE_LOAD_URL + "2");
-        assertThat(subject.getBeforeLoadUrls().size()).isEqualTo(2);
-        assertThat(subject.getAfterLoadUrls()).isEqualTo(AFTER_LOAD_URLS_LIST);
-        assertThat(subject.getAfterLoadSuccessUrls()).isEqualTo(AFTER_LOAD_SUCCESS_URLS_LIST);
-        assertThat(subject.getAfterLoadFailUrls()).isEqualTo(AFTER_LOAD_FAIL_URLS_LIST);
-        assertThat(subject.getRefreshTimeMillis()).isEqualTo(REFRESH_TIME * 1000);
-        assertThat(subject.getStringBody()).isEqualTo("{}");
-        assertThat(subject.getCustomEventClassName()).isEqualTo(MoPubCustomEventVideoNative.class.getName());
-        final Map<String, String> serverExtras = subject.getServerExtras();
-        assertNotNull(serverExtras);
-        assertThat(serverExtras).isNotEmpty();
-        assertThat(serverExtras.get(DataKeys.ADM_KEY)).isEqualTo(ADM_VALUE);
-    }
-
-    @Test
     public void parseNetworkResponse_forRewardedVideo_withAdvancedBidding_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.REWARDED_VIDEO);
@@ -945,11 +883,11 @@ public class MultiAdResponseTest {
         metadata.put(ResponseHeader.REWARDED_CURRENCIES.getKey(), rewardedCurrenciesJson);
 
         metadata.put(ResponseHeader.REWARDED_VIDEO_COMPLETION_URL.getKey(),
-                "http://completionUrl");
+                "https://completionUrl");
         metadata.put(ResponseHeader.REWARDED_DURATION.getKey(), "15000");
-        metadata.put(ResponseHeader.SHOULD_REWARD_ON_CLICK.getKey(), "1");
 
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -978,10 +916,9 @@ public class MultiAdResponseTest {
         assertThat(subject.getStringBody()).isEqualTo("content_text");
         assertThat(subject.getCustomEventClassName()).isEqualTo(MoPubFullscreen.class.getName());
         assertThat(subject.getRewardedCurrencies()).isEqualTo(rewardedCurrenciesJson);
-        assertThat(subject.getRewardedVideoCompletionUrl()).isEqualTo(
-                "http://completionUrl");
+        assertThat(subject.getRewardedAdCompletionUrl()).isEqualTo(
+                "https://completionUrl");
         assertThat(subject.getRewardedDuration()).isEqualTo(15000);
-        assertThat(subject.shouldRewardOnClick()).isTrue();
         final Map<String, String> serverExtras = subject.getServerExtras();
         assertNotNull(serverExtras);
         assertThat(serverExtras).isNotEmpty();
@@ -993,8 +930,9 @@ public class MultiAdResponseTest {
     @Test
     public void parseNetworkResponse_withInAppBrowserAgent_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
-        metadata.put(ResponseHeader.BROWSER_AGENT.getKey(), MoPub.BrowserAgent.IN_APP.ordinal());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        metadata.put(ResponseHeader.BROWSER_AGENT.getKey(), IN_APP.ordinal());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1005,14 +943,15 @@ public class MultiAdResponseTest {
                 REQUEST_ID_VALUE);
 
         assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getBrowserAgent()).isEqualTo(MoPub.BrowserAgent.IN_APP);
+        assertThat(subject.getBrowserAgent()).isEqualTo(IN_APP);
     }
 
     @Test
     public void parseNetworkResponse_withNativeBrowserAgent_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
-        metadata.put(ResponseHeader.BROWSER_AGENT.getKey(), MoPub.BrowserAgent.NATIVE.ordinal());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        metadata.put(ResponseHeader.BROWSER_AGENT.getKey(), NATIVE.ordinal());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1023,14 +962,15 @@ public class MultiAdResponseTest {
                 REQUEST_ID_VALUE);
 
         assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getBrowserAgent()).isEqualTo(MoPub.BrowserAgent.NATIVE);
+        assertThat(subject.getBrowserAgent()).isEqualTo(NATIVE);
     }
 
     @Test
     public void parseNetworkResponse_withNullBrowserAgent_shouldDefaultToInApp() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.BROWSER_AGENT.getKey(), null);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1041,12 +981,13 @@ public class MultiAdResponseTest {
                 REQUEST_ID_VALUE);
 
         assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getBrowserAgent()).isEqualTo(MoPub.BrowserAgent.IN_APP);
+        assertThat(subject.getBrowserAgent()).isEqualTo(IN_APP);
     }
 
     @Test
     public void parseNetworkResponse_withUndefinedBrowserAgent_shouldDefaultToInApp() throws MoPubNetworkError, JSONException {
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1057,14 +998,15 @@ public class MultiAdResponseTest {
                 REQUEST_ID_VALUE);
 
         assertThat(subject.getAdUnitId()).isEqualTo(adUnitId);
-        assertThat(subject.getBrowserAgent()).isEqualTo(MoPub.BrowserAgent.IN_APP);
+        assertThat(subject.getBrowserAgent()).isEqualTo(IN_APP);
     }
 
     @Test
     public void parseNetworkResponse_withoutRefreshTime_shouldNotIncludeRefreshTime() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.remove(ResponseHeader.REFRESH_TIME.getKey());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1086,7 +1028,8 @@ public class MultiAdResponseTest {
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
         metadata.remove(ResponseHeader.IMPRESSION_URLS.getKey());
         metadata.put(ResponseHeader.IMPRESSION_URL.getKey(), IMPTRACKER_URL);
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1125,7 +1068,8 @@ public class MultiAdResponseTest {
         metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
         metadata.put(ResponseHeader.AFTER_LOAD_URL.getKey(), AFTER_LOAD_URL+"_1");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1164,7 +1108,8 @@ public class MultiAdResponseTest {
         metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
         metadata.put(ResponseHeader.AFTER_LOAD_SUCCESS_URL.getKey(), AFTER_LOAD_SUCCESS_URL+"_1");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1203,7 +1148,8 @@ public class MultiAdResponseTest {
         metadata.put(DataKeys.ADM_KEY, ADM_VALUE);
         metadata.put(ResponseHeader.AD_TYPE.getKey(), AdType.STATIC_NATIVE);
         metadata.put(ResponseHeader.AFTER_LOAD_FAIL_URL.getKey(), AFTER_LOAD_FAIL_URL+"_1");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1239,7 +1185,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_withAllowCustomCloseTrue_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.ALLOW_CUSTOM_CLOSE.getKey(), "1");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1256,7 +1203,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_withAllowCustomCloseFalse_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.ALLOW_CUSTOM_CLOSE.getKey(), "0");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1272,7 +1220,8 @@ public class MultiAdResponseTest {
     @Test
     public void parseNetworkResponse_withMissingAllowCustomClose_shouldSucceed() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1289,7 +1238,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_withDisableVieabilitySet_shouldDisableViewability() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.DISABLE_VIEWABILITY.getKey(), "1");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         ViewabilityManager.setViewabilityEnabled(true);
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
@@ -1307,7 +1257,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_withDisableVieabilitySetToZero_shouldNotDisableViewability() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.DISABLE_VIEWABILITY.getKey(), "0");
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         ViewabilityManager.setViewabilityEnabled(true);
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
@@ -1323,7 +1274,8 @@ public class MultiAdResponseTest {
 
     @Test
     public void parseNetworkResponse_withDisableVieabilityNotSet_shouldNotChangeViewability() throws MoPubNetworkError, JSONException {
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
         ViewabilityManager.setViewabilityEnabled(true);
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
@@ -1341,7 +1293,8 @@ public class MultiAdResponseTest {
     public void parseNetworkResponse_withVerificationResources_shouldParseVerificationResources() throws MoPubNetworkError, JSONException {
         JSONObject metadata = (JSONObject) singleAdResponse.get(ResponseHeader.METADATA.getKey());
         metadata.put(ResponseHeader.VIEWABILITY_VERIFICATION.getKey(), createVieabilityVerificationJson());
-        NetworkResponse networkResponse = new NetworkResponse(singleAdResponse.toString().getBytes());
+        MoPubNetworkResponse networkResponse = new MoPubNetworkResponse(200, singleAdResponse.toString().getBytes(),
+                Collections.emptyMap());
 
         AdResponse subject = MultiAdResponse.parseSingleAdResponse(activity.getApplicationContext(),
                 networkResponse,
@@ -1437,7 +1390,10 @@ public class MultiAdResponseTest {
                         "          \"network_name\": \"networkname\",\n" +
                         "          \"network_placement_id\": \"networkplacementid\",\n" +
                         "          \"publisher_revenue\": 0.0001,\n" +
-                        "          \"precision\": \"exact\"\n" +
+                        "          \"precision\": \"exact\",\n" +
+                        "          \"demand_partner_data\": {\n" +
+                        "              \"encrypted_cpm\": \"test_cpm\"\n" +
+                        "          }\n" +
                         "     }";
         return new JSONObject(jsonString);
     }

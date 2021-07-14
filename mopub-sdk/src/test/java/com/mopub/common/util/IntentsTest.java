@@ -1,6 +1,6 @@
-// Copyright 2018-2020 Twitter, Inc.
+// Copyright 2018-2021 Twitter, Inc.
 // Licensed under the MoPub SDK License Agreement
-// http://www.mopub.com/legal/sdk-license-agreement/
+// https://www.mopub.com/legal/sdk-license-agreement/
 
 package com.mopub.common.util;
 
@@ -13,8 +13,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.AndroidRuntimeException;
 
-import com.mopub.common.MoPub;
-import com.mopub.common.MoPub.BrowserAgent;
+import com.mopub.common.BrowserAgentManager;
 import com.mopub.common.MoPubBrowser;
 import com.mopub.common.test.support.SdkTestRunner;
 import com.mopub.exceptions.IntentNotResolvableException;
@@ -31,8 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.mopub.common.BrowserAgentManager.BrowserAgent.NATIVE;
 import static org.fest.assertions.api.Assertions.assertThat;
-import static org.fest.assertions.api.Assertions.fail;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,12 +46,12 @@ public class IntentsTest {
     public void setUp() {
         activityContext = Robolectric.buildActivity(Activity.class).create().get();
         applicationContext = activityContext.getApplicationContext();
-        MoPub.resetBrowserAgent();
+        BrowserAgentManager.resetBrowserAgent();
     }
 
     @After
     public void tearDown() {
-        MoPub.resetBrowserAgent();
+        BrowserAgentManager.resetBrowserAgent();
     }
 
     @Test
@@ -170,34 +169,34 @@ public class IntentsTest {
 
     @Test
     public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeIsMoPubNativeBrowser_shouldProperlyHandleEncodedUrls() throws UrlParseException {
-        MoPub.setBrowserAgent(BrowserAgent.NATIVE);
+        BrowserAgentManager.setBrowserAgent(NATIVE);
 
         intentForNativeBrowserScheme_shouldProperlyHandleEncodedUrls();
     }
 
     @Test(expected = UrlParseException.class)
     public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeIsMoPubNativeBrowser_whenHostIsNotNavigate_shouldThrowException() throws UrlParseException {
-        MoPub.setBrowserAgent(BrowserAgent.NATIVE);
+        BrowserAgentManager.setBrowserAgent(NATIVE);
 
         intentForNativeBrowserScheme_whenNotNavigate_shouldThrowException();
     }
 
     @Test(expected = UrlParseException.class)
     public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeIsMoPubNativeBrowserButUrlParameterMissing_shouldThrowException() throws UrlParseException {
-        MoPub.setBrowserAgent(BrowserAgent.NATIVE);
+        BrowserAgentManager.setBrowserAgent(NATIVE);
 
         intentForNativeBrowserScheme_whenUrlParameterMissing_shouldThrowException();
     }
 
     @Test
-    public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeIsHttpOrHttps_shouldProperlyHandleEncodedUrls() throws UrlParseException {
-        MoPub.setBrowserAgent(BrowserAgent.NATIVE);
+    public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeIsHttps_shouldProperlyHandleEncodedUrls() throws UrlParseException {
+        BrowserAgentManager.setBrowserAgent(NATIVE);
 
         Intent intent;
 
-        intent = Intents.intentForNativeBrowserScheme(Uri.parse("http://www.example.com"));
+        intent = Intents.intentForNativeBrowserScheme(Uri.parse("https://www.example.com"));
         assertThat(intent.getAction()).isEqualTo(Intent.ACTION_VIEW);
-        assertThat(intent.getDataString()).isEqualTo("http://www.example.com");
+        assertThat(intent.getDataString()).isEqualTo("https://www.example.com");
 
         intent = Intents.intentForNativeBrowserScheme(Uri.parse("https://www.example.com/?query=1&two=2"));
         assertThat(intent.getAction()).isEqualTo(Intent.ACTION_VIEW);
@@ -209,8 +208,8 @@ public class IntentsTest {
     }
 
     @Test(expected = UrlParseException.class)
-    public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeNotMoPubNativeBrowserOrHttpOrHttps_shouldThrowException() throws UrlParseException {
-        MoPub.setBrowserAgent(BrowserAgent.NATIVE);
+    public void intentForNativeBrowserScheme_whenBrowserAgentSetToNative_whenSchemeNotMoPubNativeBrowserOrHttps_shouldThrowException() throws UrlParseException {
+        BrowserAgentManager.setBrowserAgent(NATIVE);
 
         Intents.intentForNativeBrowserScheme(Uri.parse("foo://www.example.com"));
     }
@@ -319,7 +318,7 @@ public class IntentsTest {
         final String storeUrl = "amzn://apps/android?p=com.mopub.simpleadsdemo";
 
         // resolvable Amazon Store url
-        final String amazonStoreUrl = "http://www.amazon.com/gp/mas/dl/android?p=com.mopub.simpleadsdemo";
+        final String amazonStoreUrl = "https://www.amazon.com/gp/mas/dl/android?p=com.mopub.simpleadsdemo";
         makeUrlResolvable(amazonStoreUrl);
 
         // use unresolvable "market://" url, but should start browser activity with resolvable Play Store url
