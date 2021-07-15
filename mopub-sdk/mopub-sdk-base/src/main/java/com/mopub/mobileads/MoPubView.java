@@ -43,6 +43,7 @@ public class MoPubView extends FrameLayout implements MoPubAd {
         public void onBannerClicked(MoPubView banner);
         public void onBannerExpanded(MoPubView banner);
         public void onBannerCollapsed(MoPubView banner);
+        public void onBannerRequested(MoPubView banner);
     }
 
     /**
@@ -224,6 +225,11 @@ public class MoPubView extends FrameLayout implements MoPubAd {
         }
     }
 
+    protected void adRequest(){
+        if (mBannerAdListener != null) {
+            mBannerAdListener.onBannerRequested(this);
+        }
+    }
 
     private MoPubAdSize getMoPubAdSizeFromAttributeSet(
             final Context context,

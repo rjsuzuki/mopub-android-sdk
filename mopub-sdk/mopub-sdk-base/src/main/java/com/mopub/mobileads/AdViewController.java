@@ -291,6 +291,9 @@ public class AdViewController implements AdLifecycleListener.LoadListener, AdLif
 
         String adUrl = generateAdUrl();
         loadNonJavascript(adUrl, null);
+        if(mMoPubAd instanceof MoPubView){
+            ((MoPubView) mMoPubAd).adRequest();
+        }
     }
 
     void loadNonJavascript(@Nullable final String url, @Nullable final MoPubError moPubError) {
