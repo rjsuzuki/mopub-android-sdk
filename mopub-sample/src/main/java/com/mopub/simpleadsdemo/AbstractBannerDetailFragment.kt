@@ -70,7 +70,8 @@ abstract class AbstractBannerDetailFragment : Fragment(),
         FAILED("onBannerFailed"),
         CLICKED("onBannerClicked"),
         EXPANDED("onBannerExpanded"),
-        COLLAPSED("onBannerCollapsed");
+        COLLAPSED("onBannerCollapsed"),
+        REQUESTED("onBannerRequested");
 
         override fun toString(): String {
             return callbackName
@@ -239,6 +240,11 @@ abstract class AbstractBannerDetailFragment : Fragment(),
     override fun onBannerCollapsed(banner: MoPubView) {
         callbacksAdapter?.notifyCallbackCalled(BannerCallbacks.COLLAPSED.toString())
             ?: Utils.logToast(activity, "$name collapsed.")
+    }
+
+    override fun onBannerRequested(banner: MoPubView) {
+        callbacksAdapter?.notifyCallbackCalled(BannerCallbacks.REQUESTED.toString())
+            ?: Utils.logToast(activity, "$name requested.")
     }
 
     private fun onAdSizeClicked() {
