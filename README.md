@@ -1,3 +1,6 @@
+[![](https://jitpack.io/v/rjsuzuki/mopub-android-sdk.svg)](https://jitpack.io/#rjsuzuki/mopub-android-sdk)
+
+
 # MoPub Android SDK
 
 Thanks for taking a look at MoPub! We take pride in having an easy-to-use, flexible monetization solution that works across multiple platforms.
