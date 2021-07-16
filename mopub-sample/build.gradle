@@ -121,7 +121,7 @@ dependencies {
     implementation 'com.mopub.mediation:applovin:10.1.2.0'
     implementation 'com.mopub.mediation:chartboost:8.2.0.3'
     implementation 'com.mopub.mediation:facebookaudiencenetwork:6.4.0.0'
-    implementation 'com.mopub.mediation:ironsource:7.1.5.0'
+    //implementation 'com.mopub.mediation:ironsource:7.1.5.0'
     implementation 'com.mopub.mediation:pangle:3.4.1.1.1'
     implementation 'com.mopub.mediation:tapjoy:12.7.1.1'
     implementation 'com.mopub.mediation:unityads:3.7.1.0'
